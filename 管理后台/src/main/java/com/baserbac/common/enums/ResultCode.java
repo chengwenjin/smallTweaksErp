@@ -103,7 +103,12 @@ public enum ResultCode {
     /**
      * 用户不存在
      */
-    USER_NOT_FOUND(4012, "用户不存在");
+    USER_NOT_FOUND(4012, "用户不存在"),
+
+    /**
+     * 产品编码已存在
+     */
+    PRODUCT_CODE_EXISTS(4013, "产品编码已存在");
 
     private final Integer code;
     private final String message;
