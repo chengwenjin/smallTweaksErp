@@ -1,5 +1,6 @@
 package com.baserbac.security;
 
+import com.baserbac.common.constant.RedisKeyConstant;
 import com.baserbac.common.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -7,7 +8,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -28,31 +29,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserDetailsServiceImpl userDetailsService;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, 
                                     HttpServletResponse response, 
                                     FilterChain filterChain) throws ServletException, IOException {
         try {
-            // 从请求头获取Token
             String token = getTokenFromRequest(request);
 
-            // 验证Token
             if (StringUtils.hasText(token) && jwtUtil.validateToken(token)) {
-                // 从Token中获取用户名
                 String username = jwtUtil.getUsernameFromToken(token);
                 Long userId = jwtUtil.getUserIdFromToken(token);
 
-                // 检查Redis中是否存在该Token（防止Token被注销后仍可使用）
-                String redisKey = "rbac:token:" + userId;
-                Object cachedToken = redisTemplate.opsForValue().get(redisKey);
-                
-                if (cachedToken != null && cachedToken.equals(token)) {
-                    // 加载用户详情
+                log.debug("JWT验证通过，用户: {}, userId: {}, 请求路径: {}", username, userId, request.getRequestURI());
+
+                String redisKey = RedisKeyConstant.TOKEN_PREFIX + userId;
+                String cachedToken = stringRedisTemplate.opsForValue().get(redisKey);
+
+                boolean tokenValid = cachedToken != null && cachedToken.equals(token);
+
+                log.debug("Redis中token: {}", cachedToken);
+                log.debug("请求中的token: {}", token);
+                log.debug("Token验证结果: {}", tokenValid);
+
+                if (tokenValid) {
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-                    // 创建认证对象
                     UsernamePasswordAuthenticationToken authentication = 
                         new UsernamePasswordAuthenticationToken(
                             userDetails,
@@ -64,16 +67,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new WebAuthenticationDetailsSource().buildDetails(request)
                     );
 
-                    // 设置到Security上下文
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                     
-                    log.debug("用户 {} 认证成功", username);
+                    log.info("用户 {} 认证成功，请求路径: {}", username, request.getRequestURI());
                 } else {
-                    log.warn("Token已失效或不存在于Redis中");
+                    log.warn("Token已失效或不存在于Redis中，用户: {}, 路径: {}", username, request.getRequestURI());
+                    log.warn("Redis key: {}", redisKey);
                 }
+            } else if (StringUtils.hasText(token)) {
+                log.warn("JWT验证失败，请求路径: {}", request.getRequestURI());
             }
         } catch (Exception e) {
-            log.error("JWT认证失败: {}", e.getMessage());
+            log.error("JWT认证处理失败: {}", e.getMessage(), e);
         }
 
         filterChain.doFilter(request, response);

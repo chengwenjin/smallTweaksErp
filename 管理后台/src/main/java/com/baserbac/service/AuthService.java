@@ -20,6 +20,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -52,6 +53,7 @@ public class AuthService {
     private final ApiPermissionMapper apiPermissionMapper;
     private final JwtUtil jwtUtil;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
 
     /**
      * 生成验证码
@@ -191,9 +193,8 @@ public class AuthService {
      * 登出
      */
     public void logout(Long userId) {
-        // 删除Redis中的Token
-        redisTemplate.delete(RedisKeyConstant.TOKEN_PREFIX + userId);
-        redisTemplate.delete(RedisKeyConstant.REFRESH_TOKEN_PREFIX + userId);
+        stringRedisTemplate.delete(RedisKeyConstant.TOKEN_PREFIX + userId);
+        stringRedisTemplate.delete(RedisKeyConstant.REFRESH_TOKEN_PREFIX + userId);
         
         log.info("用户 {} 已登出", userId);
     }
@@ -403,23 +404,27 @@ public class AuthService {
 
     /**
      * 保存Token到Redis
+     * 使用StringRedisTemplate避免序列化问题
      */
     private void saveTokenToRedis(Long userId, String accessToken, String refreshToken) {
-        // 保存Access Token，30分钟过期
-        redisTemplate.opsForValue().set(
+        log.info("保存Token到Redis，userId: {}", userId);
+        log.debug("accessToken: {}", accessToken);
+        
+        stringRedisTemplate.opsForValue().set(
             RedisKeyConstant.TOKEN_PREFIX + userId,
             accessToken,
             RedisKeyConstant.TOKEN_EXPIRE_SECONDS,
             TimeUnit.SECONDS
         );
         
-        // 保存Refresh Token，7天过期
-        redisTemplate.opsForValue().set(
+        stringRedisTemplate.opsForValue().set(
             RedisKeyConstant.REFRESH_TOKEN_PREFIX + userId,
             refreshToken,
             RedisKeyConstant.REFRESH_TOKEN_EXPIRE_SECONDS,
             TimeUnit.SECONDS
         );
+        
+        log.info("Token已保存到Redis，userId: {}", userId);
     }
 
     /**
