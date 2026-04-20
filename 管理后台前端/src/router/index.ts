@@ -48,6 +48,12 @@ const routes: RouteRecordRaw[] = [
         name: 'LoginLog',
         component: () => import('@/views/system/LoginLog.vue'),
         meta: { title: '登录日志' }
+      },
+      {
+        path: 'erp/products',
+        name: 'ProductManagement',
+        component: () => import('@/views/erp/Product.vue'),
+        meta: { title: '产品档案' }
       }
     ]
   }
