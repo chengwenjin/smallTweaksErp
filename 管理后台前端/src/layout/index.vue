@@ -37,6 +37,17 @@
           <el-menu-item index="/system/operation-logs">操作日志</el-menu-item>
           <el-menu-item index="/system/login-logs">登录日志</el-menu-item>
         </el-sub-menu>
+
+        <el-sub-menu index="/erp">
+          <template #title>
+            <el-icon><Goods /></el-icon>
+            <span>产品与BOM管理</span>
+          </template>
+          <el-sub-menu index="/erp/base-data">
+            <template #title>基础数据管理</template>
+            <el-menu-item index="/erp/products">产品档案</el-menu-item>
+          </el-sub-menu>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
 

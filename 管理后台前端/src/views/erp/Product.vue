@@ -130,7 +130,7 @@
             v-model="form.technicalParams" 
             type="textarea" 
             :rows="3" 
-            placeholder="请输入技术参数（JSON格式，如：{\"cpu\":\"Intel i5\",\"memory\":\"16GB\"}）" 
+            placeholder="请输入技术参数（JSON格式，如：{cpu:'Intel i5', memory:'16GB'}）" 
           />
         </el-form-item>
         <el-form-item label="产品描述">
