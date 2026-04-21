@@ -3,13 +3,15 @@ package com.baserbac;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 
 /**
  * 通用后台权限管理系统启动类
  */
 @SpringBootApplication
-@MapperScan("com.baserbac.mapper")
+@ComponentScan(basePackages = {"com.baserbac", "com.erp"})
+@MapperScan(basePackages = {"com.baserbac.mapper", "com.erp.mapper"})
 @EnableAspectJAutoProxy
 public class BaseRbacApplication {
 
