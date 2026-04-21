@@ -37,48 +37,85 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         try {
             String token = getTokenFromRequest(request);
+            String requestURI = request.getRequestURI();
+            
+            log.info("=== 开始认证流程 ===");
+            log.info("请求路径: {}", requestURI);
+            log.info("请求中的Token: {}", token != null ? (token.substring(0, Math.min(50, token.length())) + "...") : "null");
 
-            if (StringUtils.hasText(token) && jwtUtil.validateToken(token)) {
-                String username = jwtUtil.getUsernameFromToken(token);
-                Long userId = jwtUtil.getUserIdFromToken(token);
+            if (StringUtils.hasText(token)) {
+                log.info("开始验证JWT Token...");
+                boolean jwtValid = jwtUtil.validateToken(token);
+                log.info("JWT验证结果: {}", jwtValid);
+                
+                if (jwtValid) {
+                    String username = jwtUtil.getUsernameFromToken(token);
+                    Long userId = jwtUtil.getUserIdFromToken(token);
+                    
+                    log.info("JWT解析成功 - 用户名: {}, 用户ID: {}", username, userId);
 
-                log.debug("JWT验证通过，用户: {}, userId: {}, 请求路径: {}", username, userId, request.getRequestURI());
+                    String redisKey = RedisKeyConstant.TOKEN_PREFIX + userId;
+                    log.info("Redis Key: {}", redisKey);
+                    
+                    String cachedToken = stringRedisTemplate.opsForValue().get(redisKey);
+                    log.info("Redis中存储的Token: {}", cachedToken != null ? (cachedToken.substring(0, Math.min(50, cachedToken.length())) + "...") : "null");
+                    log.info("请求中的Token: {}", token.substring(0, Math.min(50, token.length())) + "...");
+                    
+                    log.info("Token长度对比 - Redis: {}, 请求: {}", 
+                             cachedToken != null ? cachedToken.length() : 0, 
+                             token.length());
+                    
+                    log.info("Token完全一致对比: {}", cachedToken != null && cachedToken.equals(token));
+                    
+                    if (cachedToken == null) {
+                        log.error("=== 问题发现: Redis中没有Token ===");
+                        log.error("可能原因: 1. Token已过期 2. Redis数据被清除 3. 用户ID不正确");
+                    } else if (!cachedToken.equals(token)) {
+                        log.error("=== 问题发现: Token不匹配 ===");
+                        log.error("可能原因: 1. 使用了旧的Token 2. 多次登录后Redis中的Token已更新");
+                    }
 
-                String redisKey = RedisKeyConstant.TOKEN_PREFIX + userId;
-                String cachedToken = stringRedisTemplate.opsForValue().get(redisKey);
+                    boolean tokenValid = cachedToken != null && cachedToken.trim().equals(token.trim());
 
-                boolean tokenValid = cachedToken != null && cachedToken.equals(token);
+                    if (tokenValid) {
+                        log.info("Token验证通过，开始加载用户详情...");
+                        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                        log.info("用户详情加载成功: {}", userDetails.getUsername());
+                        log.info("用户权限: {}", userDetails.getAuthorities());
 
-                log.debug("Redis中token: {}", cachedToken);
-                log.debug("请求中的token: {}", token);
-                log.debug("Token验证结果: {}", tokenValid);
-
-                if (tokenValid) {
-                    UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-
-                    UsernamePasswordAuthenticationToken authentication = 
-                        new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            userDetails.getAuthorities()
+                        UsernamePasswordAuthenticationToken authentication = 
+                            new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities()
+                            );
+                        
+                        authentication.setDetails(
+                            new WebAuthenticationDetailsSource().buildDetails(request)
                         );
-                    
-                    authentication.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
-                    );
 
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-                    
-                    log.info("用户 {} 认证成功，请求路径: {}", username, request.getRequestURI());
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                        
+                        log.info("=== 认证成功 ===");
+                        log.info("SecurityContext中的Authentication: {}", 
+                                 SecurityContextHolder.getContext().getAuthentication() != null ? 
+                                 SecurityContextHolder.getContext().getAuthentication().getName() : "null");
+                    } else {
+                        log.warn("=== Token验证失败 ===");
+                        log.warn("用户: {}, 路径: {}", username, requestURI);
+                        log.warn("Redis key: {}", redisKey);
+                    }
                 } else {
-                    log.warn("Token已失效或不存在于Redis中，用户: {}, 路径: {}", username, request.getRequestURI());
-                    log.warn("Redis key: {}", redisKey);
+                    log.warn("=== JWT验证失败 ===");
+                    log.warn("请求路径: {}", requestURI);
                 }
-            } else if (StringUtils.hasText(token)) {
-                log.warn("JWT验证失败，请求路径: {}", request.getRequestURI());
+            } else {
+                log.info("=== 请求中没有Token ===");
+                log.info("请求路径: {}", requestURI);
             }
         } catch (Exception e) {
-            log.error("JWT认证处理失败: {}", e.getMessage(), e);
+            log.error("=== JWT认证处理出现异常 ===");
+            log.error("异常信息: {}", e.getMessage(), e);
         }
 
         filterChain.doFilter(request, response);
