@@ -152,7 +152,6 @@ public class AuthService {
      * 刷新Token
      */
     public LoginVO refreshToken(String refreshToken) {
-        // 验证Refresh Token
         if (!jwtUtil.validateToken(refreshToken)) {
             throw new BusinessException(ResultCode.TOKEN_INVALID);
         }
@@ -160,22 +159,20 @@ public class AuthService {
         Long userId = jwtUtil.getUserIdFromToken(refreshToken);
         String username = jwtUtil.getUsernameFromToken(refreshToken);
 
-        // 验证Redis中的Token
         String redisKey = RedisKeyConstant.REFRESH_TOKEN_PREFIX + userId;
-        Object cachedToken = redisTemplate.opsForValue().get(redisKey);
+        String cachedToken = stringRedisTemplate.opsForValue().get(redisKey);
+        
+        log.info("刷新Token，userId: {}, Redis中token: {}", userId, cachedToken);
         
         if (cachedToken == null || !cachedToken.equals(refreshToken)) {
             throw new BusinessException(ResultCode.TOKEN_INVALID);
         }
 
-        // 生成新的Token
         String newAccessToken = jwtUtil.generateAccessToken(userId, username);
         String newRefreshToken = jwtUtil.generateRefreshToken(userId, username);
 
-        // 更新Redis
         saveTokenToRedis(userId, newAccessToken, newRefreshToken);
 
-        // 查询用户信息
         SysUser user = userMapper.selectById(userId);
 
         return LoginVO.builder()
