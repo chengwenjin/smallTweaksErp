@@ -72,7 +72,7 @@ const captchaKey = ref('')
 
 const loginForm = reactive({
   username: 'admin',
-  password: '123456',
+  password: 'admin123',
   captcha: '',
   captchaKey: ''
 })
