@@ -36,7 +36,10 @@ public class ErpDataInitializer implements ApplicationRunner {
             // 2. 检查并创建物料表
             checkAndCreateMaterialTable();
             
-            // 3. 检查并插入菜单数据
+            // 3. 检查并创建BOM表
+            checkAndCreateBomTable();
+            
+            // 4. 检查并插入菜单数据
             checkAndInsertMenuData();
             
             log.info("========================================");
@@ -232,6 +235,13 @@ public class ErpDataInitializer implements ApplicationRunner {
         } catch (Exception e) {
             log.error("插入物料主数据菜单失败: {}", e.getMessage());
         }
+        
+        // 检查并插入BOM管理菜单（单独处理，因为菜单可能已存在）
+        try {
+            checkAndInsertBomMenu();
+        } catch (Exception e) {
+            log.error("插入BOM管理菜单失败: {}", e.getMessage());
+        }
     }
 
     /**
@@ -392,6 +402,186 @@ public class ErpDataInitializer implements ApplicationRunner {
             
         } catch (Exception e) {
             log.error("插入物料主数据菜单失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建BOM表
+     */
+    private void checkAndCreateBomTable() {
+        try {
+            // 检查表是否存在
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_bom'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("BOM表 erp_bom 已存在");
+                
+                // 检查表中是否有数据
+                Long dataCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM erp_bom",
+                    Long.class
+                );
+                
+                if (dataCount != null && dataCount == 0) {
+                    log.info("BOM表为空，插入示例数据...");
+                    insertSampleBomData();
+                }
+                return;
+            }
+
+            log.info("BOM表 erp_bom 不存在，创建表...");
+            
+            // 创建表
+            String createTableSql = """
+                CREATE TABLE `erp_bom` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `parent_id` BIGINT NOT NULL COMMENT '父件ID（对应erp_product或erp_material的ID）',
+                    `parent_type` TINYINT NOT NULL COMMENT '父件类型：1产品 2物料',
+                    `child_id` BIGINT NOT NULL COMMENT '子件ID（对应erp_product或erp_material的ID）',
+                    `child_type` TINYINT NOT NULL COMMENT '子件类型：1产品 2物料',
+                    `quantity` DECIMAL(10,3) NOT NULL COMMENT '用量',
+                    `unit` VARCHAR(20) NOT NULL COMMENT '单位',
+                    `remark` VARCHAR(255) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1启用 0禁用',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除：0未删除 1已删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_bom_relation` (`parent_id`, `parent_type`, `child_id`, `child_type`),
+                    KEY `idx_parent` (`parent_id`, `parent_type`),
+                    KEY `idx_child` (`child_id`, `child_type`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='BOM表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("BOM表创建成功");
+            
+            // 插入示例数据
+            insertSampleBomData();
+            
+        } catch (Exception e) {
+            log.error("创建BOM表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例BOM数据
+     */
+    private void insertSampleBomData() {
+        try {
+            // 先查询产品和物料的ID
+            List<Map<String, Object>> products = jdbcTemplate.queryForList(
+                "SELECT id, product_code FROM erp_product LIMIT 3"
+            );
+            
+            List<Map<String, Object>> materials = jdbcTemplate.queryForList(
+                "SELECT id, material_code FROM erp_material LIMIT 5"
+            );
+            
+            if (products.size() >= 2 && materials.size() >= 3) {
+                Long product1Id = ((Number) products.get(0).get("id")).longValue();
+                Long product2Id = ((Number) products.get(1).get("id")).longValue();
+                Long material1Id = ((Number) materials.get(0).get("id")).longValue();
+                Long material2Id = ((Number) materials.get(1).get("id")).longValue();
+                Long material3Id = ((Number) materials.get(2).get("id")).longValue();
+                
+                String insertSql = """
+                    INSERT INTO `erp_bom` (`parent_id`, `parent_type`, `child_id`, `child_type`, `quantity`, `unit`, `remark`, `status`) VALUES
+                    (?, 1, ?, 2, 2.5, '个', '产品1需要2.5个物料1', 1),
+                    (?, 1, ?, 2, 1.0, '个', '产品1需要1个物料2', 1),
+                    (?, 1, ?, 2, 0.5, '个', '产品1需要0.5个物料3', 1),
+                    (?, 1, ?, 2, 1.5, '个', '产品2需要1.5个物料1', 1),
+                    (?, 1, ?, 1, 1.0, '个', '产品2需要1个产品1', 1)
+                    """;
+                
+                jdbcTemplate.update(insertSql, 
+                    product1Id, material1Id,
+                    product1Id, material2Id,
+                    product1Id, material3Id,
+                    product2Id, material1Id,
+                    product2Id, product1Id
+                );
+                
+                log.info("示例BOM数据插入成功");
+            }
+            
+        } catch (Exception e) {
+            log.error("插入示例BOM数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并插入BOM管理菜单
+     */
+    private void checkAndInsertBomMenu() {
+        try {
+            // 检查是否已存在BOM管理菜单
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM sys_menu WHERE menu_name = 'BOM管理'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("BOM管理菜单已存在，跳过插入");
+                return;
+            }
+
+            log.info("BOM管理菜单不存在，插入菜单数据...");
+
+            // 查找基础数据管理菜单ID
+            List<Map<String, Object>> baseDataMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = '基础数据管理' LIMIT 1"
+            );
+            
+            Long baseDataMenuId = 0L;
+            if (!baseDataMenus.isEmpty()) {
+                baseDataMenuId = ((Number) baseDataMenus.get(0).get("id")).longValue();
+            }
+
+            // 插入BOM管理菜单
+            jdbcTemplate.update(
+                "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                baseDataMenuId, "BOM管理", 2, "erp:bom:list", "boms", "erp/Bom", "Tree", 3, 1, 1, 1
+            );
+
+            Long bomMenuId = jdbcTemplate.queryForObject(
+                "SELECT LAST_INSERT_ID()",
+                Long.class
+            );
+
+            // 插入按钮权限
+            String[][] buttons = {
+                {"新增BOM", "erp:bom:add", "1"},
+                {"编辑BOM", "erp:bom:edit", "2"},
+                {"删除BOM", "erp:bom:delete", "3"}
+            };
+
+            for (String[] button : buttons) {
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `sort_order`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    bomMenuId, button[0], 3, button[1], Integer.parseInt(button[2]), 1, 1
+                );
+            }
+
+            // 给超级管理员分配菜单权限
+            jdbcTemplate.update(
+                "INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES (?, ?)",
+                1, bomMenuId
+            );
+
+            log.info("BOM管理菜单插入成功");
+            
+        } catch (Exception e) {
+            log.error("插入BOM管理菜单失败: {}", e.getMessage());
         }
     }
 }
