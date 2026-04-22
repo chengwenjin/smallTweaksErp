@@ -46,6 +46,7 @@
           <el-sub-menu index="/erp/base-data">
             <template #title>基础数据管理</template>
             <el-menu-item index="/erp/products">产品档案</el-menu-item>
+            <el-menu-item index="/erp/materials">物料主数据</el-menu-item>
           </el-sub-menu>
         </el-sub-menu>
       </el-menu>
