@@ -33,7 +33,10 @@ public class ErpDataInitializer implements ApplicationRunner {
             // 1. 检查并创建产品表
             checkAndCreateProductTable();
             
-            // 2. 检查并插入菜单数据
+            // 2. 检查并创建物料表
+            checkAndCreateMaterialTable();
+            
+            // 3. 检查并插入菜单数据
             checkAndInsertMenuData();
             
             log.info("========================================");
@@ -221,6 +224,174 @@ public class ErpDataInitializer implements ApplicationRunner {
             
         } catch (Exception e) {
             log.error("插入菜单数据失败: {}", e.getMessage());
+        }
+        
+        // 检查并插入物料主数据菜单（单独处理，因为菜单可能已存在）
+        try {
+            checkAndInsertMaterialMenu();
+        } catch (Exception e) {
+            log.error("插入物料主数据菜单失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建物料表
+     */
+    private void checkAndCreateMaterialTable() {
+        try {
+            // 检查表是否存在
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_material'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("物料表 erp_material 已存在");
+                
+                // 检查表中是否有数据
+                Long dataCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM erp_material",
+                    Long.class
+                );
+                
+                if (dataCount != null && dataCount == 0) {
+                    log.info("物料表为空，插入示例数据...");
+                    insertSampleMaterialData();
+                }
+                return;
+            }
+
+            log.info("物料表 erp_material 不存在，创建表...");
+            
+            // 创建表
+            String createTableSql = """
+                CREATE TABLE `erp_material` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `material_code` VARCHAR(50) NOT NULL COMMENT '物料编码（全局唯一）',
+                    `material_name` VARCHAR(100) NOT NULL COMMENT '物料名称',
+                    `material_type` TINYINT NOT NULL COMMENT '物料类型：1原材料 2半成品 3成品',
+                    `specification` VARCHAR(200) DEFAULT NULL COMMENT '规格型号',
+                    `unit` VARCHAR(20) DEFAULT NULL COMMENT '计量单位',
+                    `category` VARCHAR(50) DEFAULT NULL COMMENT '物料分类',
+                    `brand` VARCHAR(50) DEFAULT NULL COMMENT '品牌',
+                    `custom_attributes` TEXT DEFAULT NULL COMMENT '自定义属性（JSON格式）',
+                    `description` TEXT DEFAULT NULL COMMENT '描述',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1启用 0禁用',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除：0未删除 1已删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_material_code` (`material_code`),
+                    KEY `idx_material_name` (`material_name`),
+                    KEY `idx_material_type` (`material_type`),
+                    KEY `idx_category` (`category`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='物料主数据表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("物料表创建成功");
+            
+            // 插入示例数据
+            insertSampleMaterialData();
+            
+        } catch (Exception e) {
+            log.error("创建物料表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例物料数据
+     */
+    private void insertSampleMaterialData() {
+        try {
+            String insertSql = """
+                INSERT INTO `erp_material` (`material_code`, `material_name`, `material_type`, `specification`, `unit`, `category`, `brand`, `custom_attributes`, `description`, `status`) VALUES
+                ('MAT001', '钢材', 1, 'Q235 10mm', '吨', '金属材料', '宝钢', '{"颜色":"黑色","材质":"碳钢","规格":"10mm"}', '优质碳素结构钢', 1),
+                ('MAT002', '铝合金板材', 1, '6061-T6 2mm', '千克', '金属材料', '中铝', '{"颜色":"银色","材质":"铝合金","厚度":"2mm"}', '6061系列铝合金板材', 1),
+                ('MAT003', '塑料颗粒', 1, 'ABS 黑色', '千克', '塑料材料', '奇美', '{"颜色":"黑色","材质":"ABS","型号":"PA-757"}', 'ABS工程塑料颗粒', 1),
+                ('MAT004', '电路板组件', 2, 'PCB-V1.0', '块', '电子组件', '自研', '{"层数":"4层","尺寸":"100x80mm","材质":"FR-4"}', '主控制电路板半成品', 1),
+                ('MAT005', '电机模组', 2, 'MOTOR-50W', '个', '电子组件', '自研', '{"功率":"50W","电压":"24V","转速":"3000rpm"}', '直流减速电机模组', 1),
+                ('MAT006', '智能控制器', 3, 'CTRL-V2.0', '台', '成品', '自研', '{"型号":"CTRL-V2.0","功率":"100W","通信":"RS485/WiFi"}', '工业智能控制器成品', 1),
+                ('MAT007', '传感器模块', 3, 'SENS-TEMP', '个', '成品', '自研', '{"类型":"温度","量程":"-40~125℃","精度":"±0.5℃"}', '高精度温度传感器成品', 1)
+                """;
+            
+            jdbcTemplate.execute(insertSql);
+            log.info("示例物料数据插入成功");
+            
+        } catch (Exception e) {
+            log.error("插入示例物料数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并插入物料主数据菜单
+     */
+    private void checkAndInsertMaterialMenu() {
+        try {
+            // 检查是否已存在物料主数据菜单
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM sys_menu WHERE menu_name = '物料主数据'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("物料主数据菜单已存在，跳过插入");
+                return;
+            }
+
+            log.info("物料主数据菜单不存在，插入菜单数据...");
+
+            // 查找基础数据管理菜单ID
+            List<Map<String, Object>> baseDataMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = '基础数据管理' LIMIT 1"
+            );
+            
+            Long baseDataMenuId = 0L;
+            if (!baseDataMenus.isEmpty()) {
+                baseDataMenuId = ((Number) baseDataMenus.get(0).get("id")).longValue();
+            }
+
+            // 插入物料主数据菜单
+            jdbcTemplate.update(
+                "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                baseDataMenuId, "物料主数据", 2, "erp:material:list", "materials", "erp/Material", "Goods", 2, 1, 1, 1
+            );
+
+            Long materialMenuId = jdbcTemplate.queryForObject(
+                "SELECT LAST_INSERT_ID()",
+                Long.class
+            );
+
+            // 插入按钮权限
+            String[][] buttons = {
+                {"新增物料", "erp:material:add", "1"},
+                {"编辑物料", "erp:material:edit", "2"},
+                {"删除物料", "erp:material:delete", "3"}
+            };
+
+            for (String[] button : buttons) {
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `sort_order`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    materialMenuId, button[0], 3, button[1], Integer.parseInt(button[2]), 1, 1
+                );
+            }
+
+            // 给超级管理员分配菜单权限
+            jdbcTemplate.update(
+                "INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES (?, ?)",
+                1, materialMenuId
+            );
+
+            log.info("物料主数据菜单插入成功");
+            
+        } catch (Exception e) {
+            log.error("插入物料主数据菜单失败: {}", e.getMessage());
         }
     }
 }

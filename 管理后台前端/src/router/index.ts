@@ -54,6 +54,12 @@ const routes: RouteRecordRaw[] = [
         name: 'ProductManagement',
         component: () => import('@/views/erp/Product.vue'),
         meta: { title: '产品档案' }
+      },
+      {
+        path: 'erp/materials',
+        name: 'MaterialManagement',
+        component: () => import('@/views/erp/Material.vue'),
+        meta: { title: '物料主数据' }
       }
     ]
   }
