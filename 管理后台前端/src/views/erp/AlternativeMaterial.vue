@@ -199,7 +199,9 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { getAlternativeMaterialList, createAlternativeMaterial, updateAlternativeMaterial, deleteAlternativeMaterial, getProductList, getMaterialList } from '@/api/bomVersion'
+import { getAlternativeMaterialList, createAlternativeMaterial, updateAlternativeMaterial, deleteAlternativeMaterial } from '@/api/bomVersion'
+import { getProductList } from '@/api/product'
+import { getMaterialList } from '@/api/material'
 
 const loading = ref(false)
 const submitLoading = ref(false)
