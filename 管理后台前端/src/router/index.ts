@@ -66,6 +66,18 @@ const routes: RouteRecordRaw[] = [
         name: 'BomManagement',
         component: () => import('@/views/erp/Bom.vue'),
         meta: { title: 'BOM管理' }
+      },
+      {
+        path: 'erp/bom-versions',
+        name: 'BomVersionManagement',
+        component: () => import('@/views/erp/BomVersion.vue'),
+        meta: { title: 'BOM版本管理' }
+      },
+      {
+        path: 'erp/alternative-materials',
+        name: 'AlternativeMaterialManagement',
+        component: () => import('@/views/erp/AlternativeMaterial.vue'),
+        meta: { title: '替代料管理' }
       }
     ]
   }

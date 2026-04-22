@@ -113,7 +113,18 @@ public enum ResultCode {
     /**
      * BOM关系已存在
      */
-    BOM_RELATION_EXISTS(4014, "BOM关系已存在");
+    BOM_RELATION_EXISTS(4014, "BOM关系已存在"),
+
+    /**
+     * BOM版本已存在
+     */
+    BOM_VERSION_EXISTS(4015, "BOM版本已存在"),
+
+    /**
+     * 替代料关系已存在
+     */
+    ALTERNATIVE_MATERIAL_EXISTS(4016, "替代料关系已存在");
+
 
 
     private final Integer code;

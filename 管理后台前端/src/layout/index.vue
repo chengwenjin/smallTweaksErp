@@ -49,6 +49,11 @@
             <el-menu-item index="/erp/materials">物料主数据</el-menu-item>
             <el-menu-item index="/erp/boms">BOM管理</el-menu-item>
           </el-sub-menu>
+          <el-sub-menu index="/erp/bom-version">
+            <template #title>BOM版本与替代料</template>
+            <el-menu-item index="/erp/bom-versions">BOM版本管理</el-menu-item>
+            <el-menu-item index="/erp/alternative-materials">替代料管理</el-menu-item>
+          </el-sub-menu>
         </el-sub-menu>
       </el-menu>
     </el-aside>

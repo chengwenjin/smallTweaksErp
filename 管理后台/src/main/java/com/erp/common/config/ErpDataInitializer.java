@@ -39,7 +39,13 @@ public class ErpDataInitializer implements ApplicationRunner {
             // 3. 检查并创建BOM表
             checkAndCreateBomTable();
             
-            // 4. 检查并插入菜单数据
+            // 4. 检查并创建BOM版本表
+            checkAndCreateBomVersionTable();
+            
+            // 5. 检查并创建替代料表
+            checkAndCreateAlternativeMaterialTable();
+            
+            // 6. 检查并插入菜单数据
             checkAndInsertMenuData();
             
             log.info("========================================");
@@ -241,6 +247,13 @@ public class ErpDataInitializer implements ApplicationRunner {
             checkAndInsertBomMenu();
         } catch (Exception e) {
             log.error("插入BOM管理菜单失败: {}", e.getMessage());
+        }
+        
+        // 检查并插入BOM版本与替代料菜单（单独处理，因为菜单可能已存在）
+        try {
+            checkAndInsertBomVersionMenu();
+        } catch (Exception e) {
+            log.error("插入BOM版本与替代料菜单失败: {}", e.getMessage());
         }
     }
 
@@ -582,6 +595,318 @@ public class ErpDataInitializer implements ApplicationRunner {
             
         } catch (Exception e) {
             log.error("插入BOM管理菜单失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建BOM版本表
+     */
+    private void checkAndCreateBomVersionTable() {
+        try {
+            // 检查表是否存在
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_bom_version'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("BOM版本表 erp_bom_version 已存在");
+                
+                // 检查表中是否有数据
+                Long dataCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM erp_bom_version",
+                    Long.class
+                );
+                
+                if (dataCount != null && dataCount == 0) {
+                    log.info("BOM版本表为空，插入示例数据...");
+                    insertSampleBomVersionData();
+                }
+                return;
+            }
+
+            log.info("BOM版本表 erp_bom_version 不存在，创建表...");
+            
+            // 创建表
+            String createTableSql = """
+                CREATE TABLE `erp_bom_version` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `bom_id` BIGINT NOT NULL COMMENT 'BOM ID（对应erp_bom的ID）',
+                    `version` VARCHAR(20) NOT NULL COMMENT '版本号',
+                    `ecn_number` VARCHAR(50) NOT NULL COMMENT 'ECN编号',
+                    `change_reason` VARCHAR(255) DEFAULT NULL COMMENT '变更原因',
+                    `change_content` TEXT DEFAULT NULL COMMENT '变更内容',
+                    `effective_time` DATETIME DEFAULT NULL COMMENT '生效时间',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1启用 0禁用',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除：0未删除 1已删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_bom_version` (`bom_id`, `version`),
+                    KEY `idx_ecn_number` (`ecn_number`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='BOM版本表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("BOM版本表创建成功");
+            
+            // 插入示例数据
+            insertSampleBomVersionData();
+            
+        } catch (Exception e) {
+            log.error("创建BOM版本表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例BOM版本数据
+     */
+    private void insertSampleBomVersionData() {
+        try {
+            // 先查询BOM的ID
+            List<Map<String, Object>> boms = jdbcTemplate.queryForList(
+                "SELECT id FROM erp_bom LIMIT 2"
+            );
+            
+            if (boms.size() >= 2) {
+                Long bom1Id = ((Number) boms.get(0).get("id")).longValue();
+                Long bom2Id = ((Number) boms.get(1).get("id")).longValue();
+                
+                String insertSql = """
+                    INSERT INTO `erp_bom_version` (`bom_id`, `version`, `ecn_number`, `change_reason`, `change_content`, `effective_time`, `status`) VALUES
+                    (?, 'V1.0', 'ECN2024001', '初始版本', '创建BOM初始版本', NOW(), 1),
+                    (?, 'V1.1', 'ECN2024002', '调整用量', '调整子件用量比例', NOW(), 1),
+                    (?, 'V1.0', 'ECN2024003', '初始版本', '创建BOM初始版本', NOW(), 1)
+                    """;
+                
+                jdbcTemplate.update(insertSql, 
+                    bom1Id, 
+                    bom1Id, 
+                    bom2Id
+                );
+                
+                log.info("示例BOM版本数据插入成功");
+            }
+            
+        } catch (Exception e) {
+            log.error("插入示例BOM版本数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建替代料表
+     */
+    private void checkAndCreateAlternativeMaterialTable() {
+        try {
+            // 检查表是否存在
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_alternative_material'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("替代料表 erp_alternative_material 已存在");
+                
+                // 检查表中是否有数据
+                Long dataCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM erp_alternative_material",
+                    Long.class
+                );
+                
+                if (dataCount != null && dataCount == 0) {
+                    log.info("替代料表为空，插入示例数据...");
+                    insertSampleAlternativeMaterialData();
+                }
+                return;
+            }
+
+            log.info("替代料表 erp_alternative_material 不存在，创建表...");
+            
+            // 创建表
+            String createTableSql = """
+                CREATE TABLE `erp_alternative_material` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `main_material_id` BIGINT NOT NULL COMMENT '主料ID（对应erp_product或erp_material的ID）',
+                    `main_material_type` TINYINT NOT NULL COMMENT '主料类型：1产品 2物料',
+                    `alternative_material_id` BIGINT NOT NULL COMMENT '替代料ID（对应erp_product或erp_material的ID）',
+                    `alternative_material_type` TINYINT NOT NULL COMMENT '替代料类型：1产品 2物料',
+                    `alternative_ratio` DECIMAL(10,3) NOT NULL COMMENT '替代比例',
+                    `priority` TINYINT NOT NULL COMMENT '优先级：1-5（1最高）',
+                    `applicable_scene` VARCHAR(255) DEFAULT NULL COMMENT '适用场景',
+                    `remark` VARCHAR(255) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1启用 0禁用',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除：0未删除 1已删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_alternative_relation` (`main_material_id`, `main_material_type`, `alternative_material_id`, `alternative_material_type`),
+                    KEY `idx_main_material` (`main_material_id`, `main_material_type`),
+                    KEY `idx_alternative_material` (`alternative_material_id`, `alternative_material_type`),
+                    KEY `idx_priority` (`priority`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='替代料表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("替代料表创建成功");
+            
+            // 插入示例数据
+            insertSampleAlternativeMaterialData();
+            
+        } catch (Exception e) {
+            log.error("创建替代料表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例替代料数据
+     */
+    private void insertSampleAlternativeMaterialData() {
+        try {
+            // 先查询物料的ID
+            List<Map<String, Object>> materials = jdbcTemplate.queryForList(
+                "SELECT id, material_code FROM erp_material LIMIT 4"
+            );
+            
+            if (materials.size() >= 4) {
+                Long material1Id = ((Number) materials.get(0).get("id")).longValue();
+                Long material2Id = ((Number) materials.get(1).get("id")).longValue();
+                Long material3Id = ((Number) materials.get(2).get("id")).longValue();
+                Long material4Id = ((Number) materials.get(3).get("id")).longValue();
+                
+                String insertSql = """
+                    INSERT INTO `erp_alternative_material` (`main_material_id`, `main_material_type`, `alternative_material_id`, `alternative_material_type`, `alternative_ratio`, `priority`, `applicable_scene`, `remark`, `status`) VALUES
+                    (?, 2, ?, 2, 1.0, 1, '常规生产', '首选替代料', 1),
+                    (?, 2, ?, 2, 1.2, 2, '紧急生产', '次选替代料', 1),
+                    (?, 2, ?, 2, 1.0, 1, '常规生产', '首选替代料', 1)
+                    """;
+                
+                jdbcTemplate.update(insertSql, 
+                    material1Id, material2Id,
+                    material1Id, material3Id,
+                    material2Id, material4Id
+                );
+                
+                log.info("示例替代料数据插入成功");
+            }
+            
+        } catch (Exception e) {
+            log.error("插入示例替代料数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并插入BOM版本与替代料菜单
+     */
+    private void checkAndInsertBomVersionMenu() {
+        try {
+            // 查找产品与BOM管理菜单ID
+            List<Map<String, Object>> productBomMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = '产品与BOM管理' LIMIT 1"
+            );
+            
+            Long productBomMenuId = 0L;
+            if (!productBomMenus.isEmpty()) {
+                productBomMenuId = ((Number) productBomMenus.get(0).get("id")).longValue();
+            }
+
+            // 检查是否已存在BOM版本与替代料菜单
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM sys_menu WHERE menu_name = 'BOM版本与替代料'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("BOM版本与替代料菜单已存在，跳过插入");
+                return;
+            }
+
+            log.info("BOM版本与替代料菜单不存在，插入菜单数据...");
+
+            // 插入BOM版本与替代料菜单
+            jdbcTemplate.update(
+                "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                productBomMenuId, "BOM版本与替代料", 1, "erp:bom-version:list", "bom-version", "", "DataLine", 2, 1, 1, 1
+            );
+
+            Long bomVersionMenuId = jdbcTemplate.queryForObject(
+                "SELECT LAST_INSERT_ID()",
+                Long.class
+            );
+
+            // 插入BOM版本管理菜单
+            jdbcTemplate.update(
+                "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                bomVersionMenuId, "BOM版本管理", 2, "erp:bom-version:list", "bom-versions", "erp/BomVersion", "Version", 1, 1, 1, 1
+            );
+
+            Long bomVersionSubMenuId = jdbcTemplate.queryForObject(
+                "SELECT LAST_INSERT_ID()",
+                Long.class
+            );
+
+            // 插入BOM版本管理按钮权限
+            String[][] bomVersionButtons = {
+                {"新增版本", "erp:bom-version:add", "1"},
+                {"编辑版本", "erp:bom-version:edit", "2"},
+                {"删除版本", "erp:bom-version:delete", "3"}
+            };
+
+            for (String[] button : bomVersionButtons) {
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `sort_order`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    bomVersionSubMenuId, button[0], 3, button[1], Integer.parseInt(button[2]), 1, 1
+                );
+            }
+
+            // 插入替代料管理菜单
+            jdbcTemplate.update(
+                "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                bomVersionMenuId, "替代料管理", 2, "erp:alternative-material:list", "alternative-materials", "erp/AlternativeMaterial", "Switch", 2, 1, 1, 1
+            );
+
+            Long alternativeMaterialSubMenuId = jdbcTemplate.queryForObject(
+                "SELECT LAST_INSERT_ID()",
+                Long.class
+            );
+
+            // 插入替代料管理按钮权限
+            String[][] alternativeMaterialButtons = {
+                {"新增替代料", "erp:alternative-material:add", "1"},
+                {"编辑替代料", "erp:alternative-material:edit", "2"},
+                {"删除替代料", "erp:alternative-material:delete", "3"}
+            };
+
+            for (String[] button : alternativeMaterialButtons) {
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `sort_order`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    alternativeMaterialSubMenuId, button[0], 3, button[1], Integer.parseInt(button[2]), 1, 1
+                );
+            }
+
+            // 给超级管理员分配菜单权限
+            jdbcTemplate.update(
+                "INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES (?, ?), (?, ?), (?, ?)",
+                1, bomVersionMenuId,
+                1, bomVersionSubMenuId,
+                1, alternativeMaterialSubMenuId
+            );
+
+            log.info("BOM版本与替代料菜单插入成功");
+            
+        } catch (Exception e) {
+            log.error("插入BOM版本与替代料菜单失败: {}", e.getMessage());
         }
     }
 }
