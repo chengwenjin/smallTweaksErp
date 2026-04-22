@@ -108,7 +108,13 @@ public enum ResultCode {
     /**
      * 产品编码已存在
      */
-    PRODUCT_CODE_EXISTS(4013, "产品编码已存在");
+    PRODUCT_CODE_EXISTS(4013, "产品编码已存在"),
+
+    /**
+     * BOM关系已存在
+     */
+    BOM_RELATION_EXISTS(4014, "BOM关系已存在");
+
 
     private final Integer code;
     private final String message;
