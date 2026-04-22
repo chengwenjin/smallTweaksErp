@@ -808,6 +808,7 @@ public class ErpDataInitializer implements ApplicationRunner {
 
     /**
      * 检查并插入BOM版本与替代料菜单
+     * 注意：这个方法会强制重新插入菜单，确保配置正确
      */
     private void checkAndInsertBomVersionMenu() {
         try {
@@ -821,20 +822,46 @@ public class ErpDataInitializer implements ApplicationRunner {
                 productBomMenuId = ((Number) productBomMenus.get(0).get("id")).longValue();
             }
 
-            // 检查是否已存在BOM版本与替代料菜单
-            Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM sys_menu WHERE menu_name = 'BOM版本与替代料'",
-                Long.class
+            // 先删除已有的BOM版本与替代料相关菜单（强制重新初始化）
+            log.info("准备初始化BOM版本与替代料菜单...");
+            
+            // 查找并删除已有的相关菜单
+            List<Map<String, Object>> existingMenus = jdbcTemplate.queryForList(
+                "SELECT id, menu_name, parent_id FROM sys_menu WHERE menu_name IN ('BOM版本与替代料', 'BOM版本管理', '替代料管理')"
             );
             
-            if (count != null && count > 0) {
-                log.info("BOM版本与替代料菜单已存在，跳过插入");
-                return;
+            if (!existingMenus.isEmpty()) {
+                log.info("发现已存在的BOM版本与替代料菜单，准备重新初始化...");
+                
+                // 先删除按钮权限
+                for (Map<String, Object> menu : existingMenus) {
+                    Long menuId = ((Number) menu.get("id")).longValue();
+                    jdbcTemplate.update(
+                        "DELETE FROM sys_menu WHERE parent_id = ?",
+                        menuId
+                    );
+                    // 从角色菜单关联表中删除
+                    jdbcTemplate.update(
+                        "DELETE FROM sys_role_menu WHERE menu_id = ?",
+                        menuId
+                    );
+                }
+                
+                // 删除菜单本身
+                for (Map<String, Object> menu : existingMenus) {
+                    Long menuId = ((Number) menu.get("id")).longValue();
+                    jdbcTemplate.update(
+                        "DELETE FROM sys_menu WHERE id = ?",
+                        menuId
+                    );
+                }
+                
+                log.info("已清除旧的BOM版本与替代料菜单配置");
             }
 
-            log.info("BOM版本与替代料菜单不存在，插入菜单数据...");
+            log.info("开始插入BOM版本与替代料菜单数据...");
 
-            // 插入BOM版本与替代料菜单
+            // 插入BOM版本与替代料菜单（父菜单）
             jdbcTemplate.update(
                 "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 productBomMenuId, "BOM版本与替代料", 1, "erp:bom-version:list", "bom-version", "", "DataLine", 2, 1, 1, 1
@@ -844,6 +871,8 @@ public class ErpDataInitializer implements ApplicationRunner {
                 "SELECT LAST_INSERT_ID()",
                 Long.class
             );
+
+            log.info("已插入BOM版本与替代料父菜单，ID: {}", bomVersionMenuId);
 
             // 插入BOM版本管理菜单
             jdbcTemplate.update(
@@ -855,6 +884,8 @@ public class ErpDataInitializer implements ApplicationRunner {
                 "SELECT LAST_INSERT_ID()",
                 Long.class
             );
+
+            log.info("已插入BOM版本管理菜单，ID: {}", bomVersionSubMenuId);
 
             // 插入BOM版本管理按钮权限
             String[][] bomVersionButtons = {
@@ -881,6 +912,8 @@ public class ErpDataInitializer implements ApplicationRunner {
                 Long.class
             );
 
+            log.info("已插入替代料管理菜单，ID: {}", alternativeMaterialSubMenuId);
+
             // 插入替代料管理按钮权限
             String[][] alternativeMaterialButtons = {
                 {"新增替代料", "erp:alternative-material:add", "1"},
@@ -903,10 +936,15 @@ public class ErpDataInitializer implements ApplicationRunner {
                 1, alternativeMaterialSubMenuId
             );
 
-            log.info("BOM版本与替代料菜单插入成功");
+            log.info("========================================");
+            log.info("   BOM版本与替代料菜单初始化完成！");
+            log.info("   - BOM版本与替代料菜单ID: {}", bomVersionMenuId);
+            log.info("   - BOM版本管理菜单ID: {}", bomVersionSubMenuId);
+            log.info("   - 替代料管理菜单ID: {}", alternativeMaterialSubMenuId);
+            log.info("========================================");
             
         } catch (Exception e) {
-            log.error("插入BOM版本与替代料菜单失败: {}", e.getMessage());
+            log.error("初始化BOM版本与替代料菜单失败: {}", e.getMessage(), e);
         }
     }
 }
