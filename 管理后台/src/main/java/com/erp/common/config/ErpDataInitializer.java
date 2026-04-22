@@ -161,11 +161,9 @@ public class ErpDataInitializer implements ApplicationRunner {
             );
             
             if (count != null && count > 0) {
-                log.info("菜单数据已存在，跳过插入");
-                return;
-            }
-
-            log.info("菜单数据不存在，插入菜单数据...");
+                log.info("产品与BOM管理菜单已存在，跳过插入");
+            } else {
+                log.info("菜单数据不存在，插入菜单数据...");
 
             // 1. 插入顶级菜单：产品与BOM管理
             jdbcTemplate.update(
@@ -230,6 +228,7 @@ public class ErpDataInitializer implements ApplicationRunner {
             }
 
             log.info("菜单数据插入成功");
+            }
             
         } catch (Exception e) {
             log.error("插入菜单数据失败: {}", e.getMessage());
