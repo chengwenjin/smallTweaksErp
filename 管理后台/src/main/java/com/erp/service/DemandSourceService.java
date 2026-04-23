@@ -190,6 +190,20 @@ public class DemandSourceService {
     }
 
     @Transactional(rollbackFor = Exception.class)
+    public void updateDemandSourceStatusBatch(List<Long> ids, Integer status) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        for (Long id : ids) {
+            ErpDemandSource demandSource = demandSourceMapper.selectById(id);
+            if (demandSource != null) {
+                demandSource.setStatus(status);
+                demandSourceMapper.updateById(demandSource);
+            }
+        }
+    }
+
+    @Transactional(rollbackFor = Exception.class)
     public void deleteDemandSource(Long id) {
         ErpDemandSource demandSource = demandSourceMapper.selectById(id);
         if (demandSource == null) {

@@ -63,6 +63,24 @@ public class DemandSourceController {
         return R.success();
     }
 
+    @OperationLog(module = "需求来源管理", value = "批量更新需求来源状态")
+    @Operation(summary = "批量更新需求来源状态")
+    @PutMapping("/batch/status")
+    public R<Void> updateDemandSourceStatusBatch(@RequestBody BatchStatusDTO batchStatusDTO) {
+        demandSourceService.updateDemandSourceStatusBatch(batchStatusDTO.getIds(), batchStatusDTO.getStatus());
+        return R.success();
+    }
+
+    @OperationLog(module = "需求来源管理", value = "批量删除需求来源")
+    @Operation(summary = "批量删除需求来源")
+    @DeleteMapping("/batch")
+    public R<Void> deleteDemandSourceBatch(@RequestBody BatchDeleteDTO batchDeleteDTO) {
+        for (Long id : batchDeleteDTO.getIds()) {
+            demandSourceService.deleteDemandSource(id);
+        }
+        return R.success();
+    }
+
     @OperationLog(module = "需求来源管理", value = "删除需求来源")
     @Operation(summary = "删除需求来源")
     @DeleteMapping("/{id}")
@@ -74,5 +92,16 @@ public class DemandSourceController {
     @lombok.Data
     public static class StatusDTO {
         private Integer status;
+    }
+
+    @lombok.Data
+    public static class BatchStatusDTO {
+        private List<Long> ids;
+        private Integer status;
+    }
+
+    @lombok.Data
+    public static class BatchDeleteDTO {
+        private List<Long> ids;
     }
 }

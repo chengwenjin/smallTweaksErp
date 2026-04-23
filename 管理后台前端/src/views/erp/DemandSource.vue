@@ -43,9 +43,30 @@
           <el-icon><Refresh /></el-icon>
           同步所有需求
         </el-button>
+        <el-divider direction="vertical" />
+        <el-button type="primary" :disabled="selectedRows.length === 0" @click="handleBatchMarkProcessed">
+          批量标记已处理
+        </el-button>
+        <el-button type="warning" :disabled="selectedRows.length === 0" @click="handleBatchMarkCancelled">
+          批量标记已取消
+        </el-button>
+        <el-button type="info" :disabled="selectedRows.length === 0" @click="handleBatchMarkPending">
+          批量恢复待处理
+        </el-button>
+        <el-button type="danger" :disabled="selectedRows.length === 0" @click="handleBatchDelete">
+          批量删除
+        </el-button>
       </div>
 
-      <el-table :data="tableData" border stripe v-loading="loading">
+      <el-table 
+        ref="multipleTableRef" 
+        :data="tableData" 
+        border 
+        stripe 
+        v-loading="loading"
+        @selection-change="handleSelectionChange"
+      >
+        <el-table-column type="selection" width="50" />
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="sourceNo" label="来源编号" width="160" />
         <el-table-column prop="sourceTypeName" label="来源类型" width="100">
@@ -71,8 +92,17 @@
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
         <el-table-column prop="createTime" label="创建时间" width="180" />
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
+            <el-button v-if="row.status === 1" link type="primary" size="small" @click="handleMarkProcessed(row)">
+              标记已处理
+            </el-button>
+            <el-button v-if="row.status === 1" link type="warning" size="small" @click="handleMarkCancelled(row)">
+              标记已取消
+            </el-button>
+            <el-button v-if="row.status !== 1" link type="info" size="small" @click="handleMarkPending(row)">
+              恢复待处理
+            </el-button>
             <el-button link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -95,10 +125,12 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getDemandSourceList, syncFromSalesOrders, syncFromForecastOrders, syncAllDemandSources, deleteDemandSource } from '@/api/demandSource'
+import { getDemandSourceList, syncFromSalesOrders, syncFromForecastOrders, syncAllDemandSources, deleteDemandSource, deleteDemandSourceBatch, updateDemandSourceStatus, updateDemandSourceStatusBatch } from '@/api/demandSource'
 
 const loading = ref(false)
 const tableData = ref<any[]>([])
+const selectedRows = ref<any[]>([])
+const multipleTableRef = ref()
 
 const searchForm = reactive({
   sourceNo: '',
@@ -213,6 +245,154 @@ const handleDelete = (row: any) => {
       await deleteDemandSource(row.id)
       ElMessage.success('删除成功')
       fetchData()
+    } catch (error) {
+      console.error(error)
+    }
+  })
+}
+
+const handleMarkProcessed = (row: any) => {
+  ElMessageBox.confirm('确定要将该需求来源标记为「已处理」吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'info'
+  }).then(async () => {
+    try {
+      await updateDemandSourceStatus(row.id, 2)
+      ElMessage.success('标记成功')
+      fetchData()
+    } catch (error) {
+      console.error(error)
+    }
+  })
+}
+
+const handleMarkCancelled = (row: any) => {
+  ElMessageBox.confirm('确定要将该需求来源标记为「已取消」吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(async () => {
+    try {
+      await updateDemandSourceStatus(row.id, 3)
+      ElMessage.success('标记成功')
+      fetchData()
+    } catch (error) {
+      console.error(error)
+    }
+  })
+}
+
+const handleMarkPending = (row: any) => {
+  ElMessageBox.confirm('确定要将该需求来源恢复为「待处理」吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'info'
+  }).then(async () => {
+    try {
+      await updateDemandSourceStatus(row.id, 1)
+      ElMessage.success('恢复成功')
+      fetchData()
+    } catch (error) {
+      console.error(error)
+    }
+  })
+}
+
+const handleSelectionChange = (selection: any[]) => {
+  selectedRows.value = selection
+}
+
+const handleBatchMarkProcessed = () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要操作的记录')
+    return
+  }
+  ElMessageBox.confirm(`确定要将选中的 ${selectedRows.value.length} 条记录标记为「已处理」吗？`, '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'info'
+  }).then(async () => {
+    try {
+      const ids = selectedRows.value.map((row: any) => row.id)
+      await updateDemandSourceStatusBatch(ids, 2)
+      ElMessage.success('批量标记成功')
+      fetchData()
+      if (multipleTableRef.value) {
+        multipleTableRef.value.clearSelection()
+      }
+    } catch (error) {
+      console.error(error)
+    }
+  })
+}
+
+const handleBatchMarkCancelled = () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要操作的记录')
+    return
+  }
+  ElMessageBox.confirm(`确定要将选中的 ${selectedRows.value.length} 条记录标记为「已取消」吗？`, '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(async () => {
+    try {
+      const ids = selectedRows.value.map((row: any) => row.id)
+      await updateDemandSourceStatusBatch(ids, 3)
+      ElMessage.success('批量标记成功')
+      fetchData()
+      if (multipleTableRef.value) {
+        multipleTableRef.value.clearSelection()
+      }
+    } catch (error) {
+      console.error(error)
+    }
+  })
+}
+
+const handleBatchMarkPending = () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要操作的记录')
+    return
+  }
+  ElMessageBox.confirm(`确定要将选中的 ${selectedRows.value.length} 条记录恢复为「待处理」吗？`, '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'info'
+  }).then(async () => {
+    try {
+      const ids = selectedRows.value.map((row: any) => row.id)
+      await updateDemandSourceStatusBatch(ids, 1)
+      ElMessage.success('批量恢复成功')
+      fetchData()
+      if (multipleTableRef.value) {
+        multipleTableRef.value.clearSelection()
+      }
+    } catch (error) {
+      console.error(error)
+    }
+  })
+}
+
+const handleBatchDelete = () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要删除的记录')
+    return
+  }
+  ElMessageBox.confirm(`确定要删除选中的 ${selectedRows.value.length} 条记录吗？`, '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(async () => {
+    try {
+      const ids = selectedRows.value.map((row: any) => row.id)
+      await deleteDemandSourceBatch(ids)
+      ElMessage.success('批量删除成功')
+      fetchData()
+      if (multipleTableRef.value) {
+        multipleTableRef.value.clearSelection()
+      }
     } catch (error) {
       console.error(error)
     }
