@@ -24,6 +24,14 @@ export function deleteDemandSource(id: number) {
   return request.delete(`/erp/demand-sources/${id}`)
 }
 
+export function deleteDemandSourceBatch(ids: number[]) {
+  return request.delete('/erp/demand-sources/batch', { data: { ids } })
+}
+
 export function updateDemandSourceStatus(id: number, status: number) {
   return request.put(`/erp/demand-sources/${id}/status`, { status })
+}
+
+export function updateDemandSourceStatusBatch(ids: number[], status: number) {
+  return request.put('/erp/demand-sources/batch/status', { ids, status })
 }
