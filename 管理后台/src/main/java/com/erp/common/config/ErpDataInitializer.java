@@ -45,7 +45,28 @@ public class ErpDataInitializer implements ApplicationRunner {
             // 5. 检查并创建替代料表
             checkAndCreateAlternativeMaterialTable();
             
-            // 6. 检查并插入菜单数据
+            // 6. 检查并创建销售订单表
+            checkAndCreateSalesOrderTable();
+            
+            // 7. 检查并创建销售订单明细表
+            checkAndCreateSalesOrderItemTable();
+            
+            // 8. 检查并创建预测单表
+            checkAndCreateForecastOrderTable();
+            
+            // 9. 检查并创建预测单明细表
+            checkAndCreateForecastOrderItemTable();
+            
+            // 10. 检查并创建库存表
+            checkAndCreateInventoryTable();
+            
+            // 11. 检查并创建需求来源表
+            checkAndCreateDemandSourceTable();
+            
+            // 12. 检查并创建净需求表
+            checkAndCreateNetRequirementTable();
+            
+            // 13. 检查并插入菜单数据
             checkAndInsertMenuData();
             
             log.info("========================================");
@@ -944,6 +965,595 @@ public class ErpDataInitializer implements ApplicationRunner {
             
         } catch (Exception e) {
             log.error("初始化BOM版本与替代料菜单失败: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 检查并创建销售订单表
+     */
+    private void checkAndCreateSalesOrderTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_sales_order'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("销售订单表 erp_sales_order 已存在");
+                Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_sales_order", Long.class);
+                if (dataCount != null && dataCount == 0) {
+                    log.info("销售订单表为空，插入示例数据...");
+                    insertSampleSalesOrderData();
+                }
+                return;
+            }
+
+            log.info("销售订单表 erp_sales_order 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_sales_order` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `order_no` VARCHAR(50) NOT NULL COMMENT '订单编号',
+                    `customer_name` VARCHAR(100) DEFAULT NULL COMMENT '客户名称',
+                    `customer_code` VARCHAR(50) DEFAULT NULL COMMENT '客户编码',
+                    `order_type` TINYINT NOT NULL DEFAULT 1 COMMENT '订单类型：1普通订单 2紧急订单',
+                    `order_date` DATE DEFAULT NULL COMMENT '订单日期',
+                    `delivery_date` DATE DEFAULT NULL COMMENT '交货日期',
+                    `total_amount` DECIMAL(12,2) DEFAULT 0.00 COMMENT '订单总金额',
+                    `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1待确认 2已确认 3已发货 4已完成 5已取消',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_order_no` (`order_no`),
+                    KEY `idx_customer_name` (`customer_name`),
+                    KEY `idx_order_date` (`order_date`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='销售订单主表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("销售订单表创建成功");
+            
+            insertSampleSalesOrderData();
+            
+        } catch (Exception e) {
+            log.error("创建销售订单表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例销售订单数据
+     */
+    private void insertSampleSalesOrderData() {
+        try {
+            String insertSql = """
+                INSERT INTO `erp_sales_order` (`order_no`, `customer_name`, `customer_code`, `order_type`, `order_date`, `delivery_date`, `total_amount`, `remark`, `status`) VALUES
+                ('SO20260423001', 'ABC科技有限公司', 'CUST001', 1, '2026-04-23', '2026-05-15', 125000.00, '常规销售订单，共100台台式计算机', 2),
+                ('SO20260423002', 'XYZ电子设备公司', 'CUST002', 2, '2026-04-23', '2026-04-30', 85000.00, '紧急订单，请优先处理，共50台笔记本电脑', 2),
+                ('SO20260423003', '环球贸易集团', 'CUST003', 1, '2026-04-24', '2026-05-20', 58000.00, '常规订单，30台投影仪', 1)
+                """;
+            
+            jdbcTemplate.execute(insertSql);
+            log.info("示例销售订单数据插入成功");
+            
+        } catch (Exception e) {
+            log.error("插入示例销售订单数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建销售订单明细表
+     */
+    private void checkAndCreateSalesOrderItemTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_sales_order_item'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("销售订单明细表 erp_sales_order_item 已存在");
+                Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_sales_order_item", Long.class);
+                if (dataCount != null && dataCount == 0) {
+                    log.info("销售订单明细表为空，插入示例数据...");
+                    insertSampleSalesOrderItemData();
+                }
+                return;
+            }
+
+            log.info("销售订单明细表 erp_sales_order_item 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_sales_order_item` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `order_id` BIGINT NOT NULL COMMENT '订单ID',
+                    `order_no` VARCHAR(50) DEFAULT NULL COMMENT '订单编号',
+                    `product_id` BIGINT DEFAULT NULL COMMENT '产品ID',
+                    `product_code` VARCHAR(50) DEFAULT NULL COMMENT '产品编码',
+                    `product_name` VARCHAR(100) DEFAULT NULL COMMENT '产品名称',
+                    `specification` VARCHAR(200) DEFAULT NULL COMMENT '规格型号',
+                    `unit` VARCHAR(20) DEFAULT NULL COMMENT '计量单位',
+                    `quantity` DECIMAL(10,3) NOT NULL COMMENT '数量',
+                    `unit_price` DECIMAL(12,2) DEFAULT 0.00 COMMENT '单价',
+                    `amount` DECIMAL(12,2) DEFAULT 0.00 COMMENT '金额',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段3',
+                    PRIMARY KEY (`id`),
+                    KEY `idx_order_id` (`order_id`),
+                    KEY `idx_product_id` (`product_id`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='销售订单明细表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("销售订单明细表创建成功");
+            
+            insertSampleSalesOrderItemData();
+            
+        } catch (Exception e) {
+            log.error("创建销售订单明细表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例销售订单明细数据
+     */
+    private void insertSampleSalesOrderItemData() {
+        try {
+            List<Map<String, Object>> orders = jdbcTemplate.queryForList(
+                "SELECT id, order_no FROM erp_sales_order ORDER BY id"
+            );
+            List<Map<String, Object>> products = jdbcTemplate.queryForList(
+                "SELECT id, product_code, product_name FROM erp_product ORDER BY id"
+            );
+            
+            if (!orders.isEmpty() && !products.isEmpty()) {
+                for (int i = 0; i < Math.min(orders.size(), products.size()); i++) {
+                    Map<String, Object> order = orders.get(i);
+                    Map<String, Object> product = products.get(i % products.size());
+                    
+                    Long orderId = ((Number) order.get("id")).longValue();
+                    String orderNo = (String) order.get("order_no");
+                    Long productId = ((Number) product.get("id")).longValue();
+                    String productCode = (String) product.get("product_code");
+                    String productName = (String) product.get("product_name");
+                    
+                    jdbcTemplate.update(
+                        "INSERT INTO `erp_sales_order_item` (`order_id`, `order_no`, `product_id`, `product_code`, `product_name`, `specification`, `unit`, `quantity`, `unit_price`, `amount`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        orderId, orderNo, productId, productCode, productName, "规格型号" + (i + 1), "台", 
+                        new java.math.BigDecimal(50 + i * 20), 
+                        new java.math.BigDecimal(2500 + i * 100), 
+                        new java.math.BigDecimal((50 + i * 20) * (2500 + i * 100)), 
+                        1
+                    );
+                }
+                log.info("示例销售订单明细数据插入成功");
+            }
+            
+        } catch (Exception e) {
+            log.error("插入示例销售订单明细数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建预测单表
+     */
+    private void checkAndCreateForecastOrderTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_forecast_order'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("预测单表 erp_forecast_order 已存在");
+                Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_forecast_order", Long.class);
+                if (dataCount != null && dataCount == 0) {
+                    log.info("预测单表为空，插入示例数据...");
+                    insertSampleForecastOrderData();
+                }
+                return;
+            }
+
+            log.info("预测单表 erp_forecast_order 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_forecast_order` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `forecast_no` VARCHAR(50) NOT NULL COMMENT '预测单编号',
+                    `forecast_name` VARCHAR(100) DEFAULT NULL COMMENT '预测单名称',
+                    `forecast_type` TINYINT NOT NULL DEFAULT 1 COMMENT '预测类型：1月度预测 2季度预测 3年度预测',
+                    `start_date` DATE DEFAULT NULL COMMENT '开始日期',
+                    `end_date` DATE DEFAULT NULL COMMENT '结束日期',
+                    `total_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '总预测数量',
+                    `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1草稿 2已确认 3已完成 4已取消',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_forecast_no` (`forecast_no`),
+                    KEY `idx_start_date` (`start_date`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='预测单主表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("预测单表创建成功");
+            
+            insertSampleForecastOrderData();
+            
+        } catch (Exception e) {
+            log.error("创建预测单表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例预测单数据
+     */
+    private void insertSampleForecastOrderData() {
+        try {
+            String insertSql = """
+                INSERT INTO `erp_forecast_order` (`forecast_no`, `forecast_name`, `forecast_type`, `start_date`, `end_date`, `total_quantity`, `remark`, `status`) VALUES
+                ('FC2026Q2001', 'Q2季度产品需求预测', 2, '2026-04-01', '2026-06-30', 1500.00, '根据2025年Q2历史数据及市场趋势分析', 2),
+                ('FC2026M5001', '2026年5月月度预测', 1, '2026-05-01', '2026-05-31', 800.00, '针对5月份旺季的需求预测', 1),
+                ('FC2026Y001', '2026年度产品预测', 3, '2026-01-01', '2026-12-31', 6000.00, '2026全年销售预测', 1)
+                """;
+            
+            jdbcTemplate.execute(insertSql);
+            log.info("示例预测单数据插入成功");
+            
+        } catch (Exception e) {
+            log.error("插入示例预测单数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建预测单明细表
+     */
+    private void checkAndCreateForecastOrderItemTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_forecast_order_item'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("预测单明细表 erp_forecast_order_item 已存在");
+                Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_forecast_order_item", Long.class);
+                if (dataCount != null && dataCount == 0) {
+                    log.info("预测单明细表为空，插入示例数据...");
+                    insertSampleForecastOrderItemData();
+                }
+                return;
+            }
+
+            log.info("预测单明细表 erp_forecast_order_item 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_forecast_order_item` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `forecast_id` BIGINT NOT NULL COMMENT '预测单ID',
+                    `forecast_no` VARCHAR(50) DEFAULT NULL COMMENT '预测单编号',
+                    `product_id` BIGINT DEFAULT NULL COMMENT '产品ID',
+                    `product_code` VARCHAR(50) DEFAULT NULL COMMENT '产品编码',
+                    `product_name` VARCHAR(100) DEFAULT NULL COMMENT '产品名称',
+                    `specification` VARCHAR(200) DEFAULT NULL COMMENT '规格型号',
+                    `unit` VARCHAR(20) DEFAULT NULL COMMENT '计量单位',
+                    `forecast_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '预测数量',
+                    `actual_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '实际数量',
+                    `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段3',
+                    PRIMARY KEY (`id`),
+                    KEY `idx_forecast_id` (`forecast_id`),
+                    KEY `idx_product_id` (`product_id`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='预测单明细表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("预测单明细表创建成功");
+            
+            insertSampleForecastOrderItemData();
+            
+        } catch (Exception e) {
+            log.error("创建预测单明细表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例预测单明细数据
+     */
+    private void insertSampleForecastOrderItemData() {
+        try {
+            List<Map<String, Object>> forecasts = jdbcTemplate.queryForList(
+                "SELECT id, forecast_no FROM erp_forecast_order ORDER BY id"
+            );
+            List<Map<String, Object>> products = jdbcTemplate.queryForList(
+                "SELECT id, product_code, product_name FROM erp_product ORDER BY id"
+            );
+            
+            if (!forecasts.isEmpty() && !products.isEmpty()) {
+                for (int i = 0; i < Math.min(forecasts.size(), products.size()); i++) {
+                    Map<String, Object> forecast = forecasts.get(i);
+                    Map<String, Object> product = products.get(i % products.size());
+                    
+                    Long forecastId = ((Number) forecast.get("id")).longValue();
+                    String forecastNo = (String) forecast.get("forecast_no");
+                    Long productId = ((Number) product.get("id")).longValue();
+                    String productCode = (String) product.get("product_code");
+                    String productName = (String) product.get("product_name");
+                    
+                    jdbcTemplate.update(
+                        "INSERT INTO `erp_forecast_order_item` (`forecast_id`, `forecast_no`, `product_id`, `product_code`, `product_name`, `specification`, `unit`, `forecast_quantity`, `actual_quantity`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        forecastId, forecastNo, productId, productCode, productName, "规格型号" + (i + 1), "台", 
+                        new java.math.BigDecimal(300 + i * 100), 
+                        new java.math.BigDecimal(0), 
+                        "预测需求，来源于市场分析", 
+                        1
+                    );
+                }
+                log.info("示例预测单明细数据插入成功");
+            }
+            
+        } catch (Exception e) {
+            log.error("插入示例预测单明细数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建库存表
+     */
+    private void checkAndCreateInventoryTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_inventory'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("库存表 erp_inventory 已存在");
+                Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_inventory", Long.class);
+                if (dataCount != null && dataCount == 0) {
+                    log.info("库存表为空，插入示例数据...");
+                    insertSampleInventoryData();
+                }
+                return;
+            }
+
+            log.info("库存表 erp_inventory 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_inventory` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `product_id` BIGINT DEFAULT NULL COMMENT '产品ID',
+                    `product_code` VARCHAR(50) DEFAULT NULL COMMENT '产品编码',
+                    `product_name` VARCHAR(100) DEFAULT NULL COMMENT '产品名称',
+                    `specification` VARCHAR(200) DEFAULT NULL COMMENT '规格型号',
+                    `unit` VARCHAR(20) DEFAULT NULL COMMENT '计量单位',
+                    `warehouse_code` VARCHAR(50) DEFAULT NULL COMMENT '仓库编码',
+                    `warehouse_name` VARCHAR(100) DEFAULT NULL COMMENT '仓库名称',
+                    `location_code` VARCHAR(50) DEFAULT NULL COMMENT '库位编码',
+                    `quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '库存数量',
+                    `locked_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '锁定数量',
+                    `available_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '可用数量',
+                    `safety_stock` DECIMAL(12,2) DEFAULT 0.00 COMMENT '安全库存',
+                    `batch_no` VARCHAR(50) DEFAULT NULL COMMENT '批次号',
+                    `production_date` DATETIME DEFAULT NULL COMMENT '生产日期',
+                    `expiry_date` DATETIME DEFAULT NULL COMMENT '有效期至',
+                    `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1正常 2冻结',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段3',
+                    PRIMARY KEY (`id`),
+                    KEY `idx_product_id` (`product_id`),
+                    KEY `idx_product_code` (`product_code`),
+                    KEY `idx_warehouse_code` (`warehouse_code`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='库存表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("库存表创建成功");
+            
+            insertSampleInventoryData();
+            
+        } catch (Exception e) {
+            log.error("创建库存表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例库存数据
+     */
+    private void insertSampleInventoryData() {
+        try {
+            List<Map<String, Object>> products = jdbcTemplate.queryForList(
+                "SELECT id, product_code, product_name FROM erp_product ORDER BY id"
+            );
+            
+            if (!products.isEmpty()) {
+                String[] warehouses = {"WH001", "WH002", "WH001"};
+                String[] warehouseNames = {"主仓库", "备用仓库", "主仓库"};
+                String[] locations = {"A-01-01", "B-02-03", "A-01-02"};
+                
+                for (int i = 0; i < Math.min(products.size(), 3); i++) {
+                    Map<String, Object> product = products.get(i);
+                    Long productId = ((Number) product.get("id")).longValue();
+                    String productCode = (String) product.get("product_code");
+                    String productName = (String) product.get("product_name");
+                    
+                    java.math.BigDecimal quantity = new java.math.BigDecimal(100 + i * 50);
+                    java.math.BigDecimal lockedQuantity = new java.math.BigDecimal(10 + i * 5);
+                    java.math.BigDecimal availableQuantity = quantity.subtract(lockedQuantity);
+                    java.math.BigDecimal safetyStock = new java.math.BigDecimal(50 + i * 20);
+                    
+                    jdbcTemplate.update(
+                        "INSERT INTO `erp_inventory` (`product_id`, `product_code`, `product_name`, `specification`, `unit`, `warehouse_code`, `warehouse_name`, `location_code`, `quantity`, `locked_quantity`, `available_quantity`, `safety_stock`, `batch_no`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        productId, productCode, productName, "规格型号" + (i + 1), "台", 
+                        warehouses[i], warehouseNames[i], locations[i], 
+                        quantity, lockedQuantity, availableQuantity, safetyStock, 
+                        "BATCH" + (202604 + i) + String.format("%03d", i + 1), 
+                        "示例库存数据", 1
+                    );
+                }
+                log.info("示例库存数据插入成功");
+            }
+            
+        } catch (Exception e) {
+            log.error("插入示例库存数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建需求来源表
+     */
+    private void checkAndCreateDemandSourceTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_demand_source'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("需求来源表 erp_demand_source 已存在");
+                return;
+            }
+
+            log.info("需求来源表 erp_demand_source 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_demand_source` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `source_no` VARCHAR(50) NOT NULL COMMENT '来源编号',
+                    `source_type` TINYINT NOT NULL COMMENT '来源类型：1销售订单 2预测单',
+                    `source_id` BIGINT DEFAULT NULL COMMENT '来源单据ID',
+                    `product_id` BIGINT DEFAULT NULL COMMENT '产品ID',
+                    `product_code` VARCHAR(50) DEFAULT NULL COMMENT '产品编码',
+                    `product_name` VARCHAR(100) DEFAULT NULL COMMENT '产品名称',
+                    `specification` VARCHAR(200) DEFAULT NULL COMMENT '规格型号',
+                    `unit` VARCHAR(20) DEFAULT NULL COMMENT '计量单位',
+                    `demand_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '需求数量',
+                    `demand_date` DATE DEFAULT NULL COMMENT '需求日期',
+                    `allocated_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '已分配数量',
+                    `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1待处理 2已处理 3已取消',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_source_no` (`source_no`),
+                    KEY `idx_source_type` (`source_type`),
+                    KEY `idx_product_id` (`product_id`),
+                    KEY `idx_demand_date` (`demand_date`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='需求来源表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("需求来源表创建成功");
+            
+        } catch (Exception e) {
+            log.error("创建需求来源表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建净需求表
+     */
+    private void checkAndCreateNetRequirementTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_net_requirement'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("净需求表 erp_net_requirement 已存在");
+                return;
+            }
+
+            log.info("净需求表 erp_net_requirement 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_net_requirement` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `plan_no` VARCHAR(50) NOT NULL COMMENT '计划编号',
+                    `product_id` BIGINT DEFAULT NULL COMMENT '产品ID',
+                    `product_code` VARCHAR(50) DEFAULT NULL COMMENT '产品编码',
+                    `product_name` VARCHAR(100) DEFAULT NULL COMMENT '产品名称',
+                    `specification` VARCHAR(200) DEFAULT NULL COMMENT '规格型号',
+                    `unit` VARCHAR(20) DEFAULT NULL COMMENT '计量单位',
+                    `requirement_date` DATE DEFAULT NULL COMMENT '需求日期',
+                    `gross_demand` DECIMAL(12,2) DEFAULT 0.00 COMMENT '毛需求',
+                    `stock_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '库存数量',
+                    `locked_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '锁定数量',
+                    `safety_stock` DECIMAL(12,2) DEFAULT 0.00 COMMENT '安全库存',
+                    `available_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '可用数量',
+                    `net_requirement` DECIMAL(12,2) DEFAULT 0.00 COMMENT '净需求',
+                    `planned_receipt` DECIMAL(12,2) DEFAULT 0.00 COMMENT '计划接收',
+                    `planned_order` DECIMAL(12,2) DEFAULT 0.00 COMMENT '计划订单',
+                    `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1待确认 2已确认 3已执行',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_plan_no` (`plan_no`),
+                    KEY `idx_product_id` (`product_id`),
+                    KEY `idx_requirement_date` (`requirement_date`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='净需求表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("净需求表创建成功");
+            
+        } catch (Exception e) {
+            log.error("创建净需求表失败: {}", e.getMessage());
         }
     }
 }

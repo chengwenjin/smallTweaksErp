@@ -55,6 +55,21 @@
             <el-menu-item index="/erp/alternative-materials">替代料管理</el-menu-item>
           </el-sub-menu>
         </el-sub-menu>
+
+        <el-sub-menu index="/production">
+          <template #title>
+            <el-icon><List /></el-icon>
+            <span>生产计划与排程</span>
+          </template>
+          <el-sub-menu index="/production/plan">
+            <template #title>智能计划运算</template>
+            <el-menu-item index="/erp/sales-orders">销售订单</el-menu-item>
+            <el-menu-item index="/erp/forecast-orders">预测单</el-menu-item>
+            <el-menu-item index="/erp/inventories">库存管理</el-menu-item>
+            <el-menu-item index="/erp/demand-sources">需求来源</el-menu-item>
+            <el-menu-item index="/erp/net-requirements">净需求计算</el-menu-item>
+          </el-sub-menu>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
 

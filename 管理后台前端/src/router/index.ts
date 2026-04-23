@@ -78,6 +78,36 @@ const routes: RouteRecordRaw[] = [
         name: 'AlternativeMaterialManagement',
         component: () => import('@/views/erp/AlternativeMaterial.vue'),
         meta: { title: '替代料管理' }
+      },
+      {
+        path: 'erp/sales-orders',
+        name: 'SalesOrderManagement',
+        component: () => import('@/views/erp/SalesOrder.vue'),
+        meta: { title: '销售订单管理' }
+      },
+      {
+        path: 'erp/forecast-orders',
+        name: 'ForecastOrderManagement',
+        component: () => import('@/views/erp/ForecastOrder.vue'),
+        meta: { title: '预测单管理' }
+      },
+      {
+        path: 'erp/inventories',
+        name: 'InventoryManagement',
+        component: () => import('@/views/erp/Inventory.vue'),
+        meta: { title: '库存管理' }
+      },
+      {
+        path: 'erp/demand-sources',
+        name: 'DemandSourceManagement',
+        component: () => import('@/views/erp/DemandSource.vue'),
+        meta: { title: '需求来源管理' }
+      },
+      {
+        path: 'erp/net-requirements',
+        name: 'NetRequirementManagement',
+        component: () => import('@/views/erp/NetRequirement.vue'),
+        meta: { title: '净需求计算' }
       }
     ]
   }
