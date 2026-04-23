@@ -84,7 +84,6 @@ public class ErpDataInitializer implements ApplicationRunner {
      */
     private void checkAndCreateProductTable() {
         try {
-            // 检查表是否存在
             Long count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_product'",
                 Long.class
@@ -93,13 +92,15 @@ public class ErpDataInitializer implements ApplicationRunner {
             if (count != null && count > 0) {
                 log.info("产品表 erp_product 已存在");
                 
-                // 检查表中是否有数据
                 Long dataCount = jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM erp_product",
                     Long.class
                 );
                 
-                if (dataCount != null && dataCount == 0) {
+                if (dataCount != null && dataCount < 30) {
+                    log.info("产品表数据不足（{}条），补充示例数据...", dataCount);
+                    insertSampleProductData();
+                } else if (dataCount != null && dataCount == 0) {
                     log.info("产品表为空，插入示例数据...");
                     insertSampleProductData();
                 }
@@ -108,7 +109,6 @@ public class ErpDataInitializer implements ApplicationRunner {
 
             log.info("产品表 erp_product 不存在，创建表...");
             
-            // 创建表
             String createTableSql = """
                 CREATE TABLE `erp_product` (
                     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
@@ -140,7 +140,6 @@ public class ErpDataInitializer implements ApplicationRunner {
             jdbcTemplate.execute(createTableSql);
             log.info("产品表创建成功");
             
-            // 插入示例数据
             insertSampleProductData();
             
         } catch (Exception e) {
@@ -149,21 +148,51 @@ public class ErpDataInitializer implements ApplicationRunner {
     }
 
     /**
-     * 插入示例产品数据
+     * 插入示例产品数据（35条）
      */
     private void insertSampleProductData() {
         try {
             String insertSql = """
-                INSERT INTO `erp_product` (`product_code`, `product_name`, `specification`, `unit`, `category`, `brand`, `technical_params`, `description`, `status`) VALUES
+                INSERT IGNORE INTO `erp_product` (`product_code`, `product_name`, `specification`, `unit`, `category`, `brand`, `technical_params`, `description`, `status`) VALUES
                 ('PRD001', '台式计算机', 'ThinkCentre M90a', '台', '计算机设备', '联想', '{"cpu":"Intel i5-10400","memory":"16GB","storage":"512GB SSD","monitor":"23.8英寸"}', '联想台式计算机，商务办公用', 1),
                 ('PRD002', '笔记本电脑', 'ThinkPad X1 Carbon', '台', '计算机设备', '联想', '{"cpu":"Intel i7-1165G7","memory":"16GB","storage":"1TB SSD","screen":"14英寸"}', '联想轻薄商务笔记本', 1),
                 ('PRD003', '激光打印机', 'HP LaserJet Pro M404dn', '台', '办公设备', '惠普', '{"print_speed":"40ppm","resolution":"1200x1200dpi","connectivity":"USB, Ethernet"}', '惠普黑白激光打印机', 1),
                 ('PRD004', '投影仪', 'Epson CB-X50', '台', '办公设备', '爱普生', '{"brightness":"3600流明","resolution":"1024x768","contrast":"16000:1"}', '爱普生商务投影仪', 1),
-                ('PRD005', '网络交换机', 'Cisco Catalyst 2960', '台', '网络设备', '思科', '{"ports":"24口","speed":"10/100/1000Mbps","type":"千兆交换机"}', '思科千兆网络交换机', 1)
+                ('PRD005', '网络交换机', 'Cisco Catalyst 2960', '台', '网络设备', '思科', '{"ports":"24口","speed":"10/100/1000Mbps","type":"千兆交换机"}', '思科千兆网络交换机', 1),
+                ('PRD006', '服务器', 'Dell PowerEdge R750', '台', '服务器设备', '戴尔', '{"cpu":"Intel Xeon Silver 4310","memory":"32GB","storage":"2TB SAS RAID","network":"4x1Gbps"}', '戴尔机架式服务器', 1),
+                ('PRD007', '显示器', 'Dell U2723QE', '台', '计算机设备', '戴尔', '{"size":"27英寸","resolution":"4K","type":"IPS","refresh":"60Hz"}', '戴尔4K高清显示器', 1),
+                ('PRD008', '键盘鼠标套装', 'Logitech MK270', '套', '计算机配件', '罗技', '{"type":"无线","interface":"2.4G","battery":"AAA"}', '罗技无线键鼠套装', 1),
+                ('PRD009', '路由器', 'Huawei AR6120', '台', '网络设备', '华为', '{"ports":"8GE+2SFP","type":"企业级","bandwidth":"1Gbps"}', '华为企业级路由器', 1),
+                ('PRD010', 'UPS电源', 'APC SUA1000ICH', '台', '电源设备', 'APC', '{"capacity":"1000VA","runtime":"5-10min","type":"在线互动式"}', 'APC不间断电源', 1),
+                ('PRD011', '多功能一体机', 'HP OfficeJet Pro 9010', '台', '办公设备', '惠普', '{"functions":"打印/复印/扫描/传真","type":"彩色喷墨","connectivity":"WiFi/USB"}', '惠普彩色喷墨一体机', 1),
+                ('PRD012', '复印机', 'Canon iR-ADV C3720', '台', '办公设备', '佳能', '{"type":"彩色数码","speed":"20ppm","functions":"复印/打印/扫描"}', '佳能彩色数码复合机', 1),
+                ('PRD013', '碎纸机', 'Fellowes 99Ci', '台', '办公设备', '范罗士', '{"capacity":"17升","shred_type":"段状","security":"P4级"}', '范罗士商用碎纸机', 1),
+                ('PRD014', '装订机', '得力 3880', '台', '办公设备', '得力', '{"type":"财务装订机","capacity":"50mm","binding":"热熔铆管"}', '得力财务装订机', 1),
+                ('PRD015', '扫描仪', 'Epson DS-570W', '台', '办公设备', '爱普生', '{"type":"馈纸式","speed":"35ppm","resolution":"600dpi"}', '爱普生高速文档扫描仪', 1),
+                ('PRD016', '工业平板电脑', '研华 PPC-3150', '台', '工控设备', '研华', '{"size":"15英寸","cpu":"Intel Celeron J1900","memory":"4GB","os":"Windows 7"}', '研华工业触摸平板电脑', 1),
+                ('PRD017', 'PLC控制器', 'Siemens S7-1200', '台', '工控设备', '西门子', '{"model":"6ES7 214-1AG40-0XB0","io":"14DI/10DO","communication":"PROFINET"}', '西门子S7-1200 PLC控制器', 1),
+                ('PRD018', '触摸屏', '威纶通 MT8102iP', '台', '工控设备', '威纶通', '{"size":"10.1英寸","resolution":"1024x600","communication":"Ethernet/RS485"}', '威纶通工业触摸屏', 1),
+                ('PRD019', '伺服驱动器', '松下 MINAS A6', '台', '工控设备', '松下', '{"power":"1kW","voltage":"200V","communication":"MODBUS-RTU"}', '松下A6系列伺服驱动器', 1),
+                ('PRD020', '变频器', '三菱 FR-E740', '台', '工控设备', '三菱', '{"power":"3.7kW","voltage":"380V","type":"矢量控制"}', '三菱E700系列变频器', 1),
+                ('PRD021', '稳压电源', '鸿宝 SVC-5KVA', '台', '电源设备', '鸿宝', '{"capacity":"5KVA","voltage":"220V","type":"全自动交流稳压"}', '鸿宝全自动交流稳压器', 1),
+                ('PRD022', '直流电源', '固纬 GPS-3303C', '台', '电源设备', '固纬', '{"voltage":"0-30V","current":"0-3A","channels":"3通道"}', '固纬线性直流电源供应器', 1),
+                ('PRD023', '网络机柜', '图腾 G26642', '台', '网络设备', '图腾', '{"height":"42U","width":"600mm","depth":"600mm","material":"冷轧钢"}', '图腾标准网络机柜', 1),
+                ('PRD024', '配线架', 'AMP 24口配线架', '个', '网络设备', '安普', '{"ports":"24口","type":"超五类","mounting":"19英寸机架式"}', '安普24口网络配线架', 1),
+                ('PRD025', '光纤模块', 'Cisco SFP-GE-L', '个', '网络设备', '思科', '{"type":"SFP","speed":"1Gbps","distance":"10km","interface":"LC"}', '思科千兆单模光纤模块', 1),
+                ('PRD026', '无线AP', 'Cisco Catalyst 9120AX', '台', '网络设备', '思科', '{"standard":"WiFi 6","band":"2.4G/5G双频","speed":"5.4Gbps"}', '思科WiFi 6无线接入点', 1),
+                ('PRD027', '防火墙', 'Fortinet FortiGate 60E', '台', '网络设备', '飞塔', '{"ports":"10GE","throughput":"3Gbps","type":"下一代防火墙"}', '飞塔企业级防火墙', 1),
+                ('PRD028', 'NAS存储', 'Synology DS1621+', '台', '存储设备', '群晖', '{"bay":"6盘位","cpu":"AMD Ryzen V1500B","memory":"4GB"}', '群晖6盘位网络存储服务器', 1),
+                ('PRD029', '固态硬盘', 'Samsung 980 Pro', '个', '存储设备', '三星', '{"capacity":"1TB","interface":"NVMe M.2","speed":"7000MB/s"}', '三星NVMe固态硬盘', 1),
+                ('PRD030', '机械硬盘', 'WD Red Pro', '个', '存储设备', '西部数据', '{"capacity":"8TB","interface":"SATA 3","rpm":"7200rpm"}', '西数红盘企业级硬盘', 1),
+                ('PRD031', 'U盘', 'Kingston DTKN', '个', '存储设备', '金士顿', '{"capacity":"64GB","interface":"USB 3.2","type":"金属外壳"}', '金士顿USB3.2高速U盘', 1),
+                ('PRD032', '移动硬盘', 'Seagate One Touch', '个', '存储设备', '希捷', '{"capacity":"2TB","interface":"USB 3.0","type":"2.5英寸"}', '希捷睿品移动硬盘', 1),
+                ('PRD033', '显示器支架', '乐歌 D7H', '个', '计算机配件', '乐歌', '{"type":"双屏支架","load":"2-9kg","adjustment":"升降旋转"}', '乐歌双屏显示器支架', 1),
+                ('PRD034', '网线钳', '三堡 HT-568R', '把', '网络工具', '三堡', '{"type":"多功能","functions":"压线/剥线/剪线","connectors":"RJ45/RJ11"}', '三堡多功能网线钳', 1),
+                ('PRD035', '测线仪', '优利德 UT681', '个', '网络工具', '优利德', '{"type":"智能线缆测试仪","test":"网线/电话线/同轴","display":"LED指示"}', '优利德智能线缆测试仪', 1)
                 """;
             
             jdbcTemplate.execute(insertSql);
-            log.info("示例产品数据插入成功");
+            log.info("示例产品数据插入成功（35条）");
             
         } catch (Exception e) {
             log.error("插入示例产品数据失败: {}", e.getMessage());
@@ -981,7 +1010,10 @@ public class ErpDataInitializer implements ApplicationRunner {
             if (count != null && count > 0) {
                 log.info("销售订单表 erp_sales_order 已存在");
                 Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_sales_order", Long.class);
-                if (dataCount != null && dataCount == 0) {
+                if (dataCount != null && dataCount < 30) {
+                    log.info("销售订单表数据不足（{}条），补充示例数据...", dataCount);
+                    insertSampleSalesOrderData();
+                } else if (dataCount != null && dataCount == 0) {
                     log.info("销售订单表为空，插入示例数据...");
                     insertSampleSalesOrderData();
                 }
@@ -1029,19 +1061,70 @@ public class ErpDataInitializer implements ApplicationRunner {
     }
 
     /**
-     * 插入示例销售订单数据
+     * 插入示例销售订单数据（35条）
      */
     private void insertSampleSalesOrderData() {
         try {
-            String insertSql = """
-                INSERT INTO `erp_sales_order` (`order_no`, `customer_name`, `customer_code`, `order_type`, `order_date`, `delivery_date`, `total_amount`, `remark`, `status`) VALUES
-                ('SO20260423001', 'ABC科技有限公司', 'CUST001', 1, '2026-04-23', '2026-05-15', 125000.00, '常规销售订单，共100台台式计算机', 2),
-                ('SO20260423002', 'XYZ电子设备公司', 'CUST002', 2, '2026-04-23', '2026-04-30', 85000.00, '紧急订单，请优先处理，共50台笔记本电脑', 2),
-                ('SO20260423003', '环球贸易集团', 'CUST003', 1, '2026-04-24', '2026-05-20', 58000.00, '常规订单，30台投影仪', 1)
-                """;
+            String[][] customers = {
+                {"ABC科技有限公司", "CUST001"}, {"XYZ电子设备公司", "CUST002"}, {"环球贸易集团", "CUST003"},
+                {"创新科技发展公司", "CUST004"}, {"东方电子有限公司", "CUST005"}, {"南方通信设备公司", "CUST006"},
+                {"北方工业集团", "CUST007"}, {"西部数据科技", "CUST008"}, {"中原计算机系统公司", "CUST009"},
+                {"华东网络技术公司", "CUST010"}, {"华南信息科技", "CUST011"}, {"华北自动化设备", "CUST012"},
+                {"华西软件服务", "CUST013"}, {"华中电子工程", "CUST014"}, {"蓝天智能制造", "CUST015"},
+                {"绿地数字化科技", "CUST016"}, {"白云信息系统", "CUST017"}, {"红日自动化", "CUST018"},
+                {"蓝海科技发展", "CUST019"}, {"金茂电子技术", "CUST020"}, {"银星通信设备", "CUST021"},
+                {"铜鼎工业自动化", "CUST022"}, {"铁流智能制造", "CUST023"}, {"玉峰信息科技", "CUST024"},
+                {"石城网络技术", "CUST025"}, {"山城电子设备", "CUST026"}, {"水城通信系统", "CUST027"},
+                {"火城自动化工程", "CUST028"}, {"风城信息技术", "CUST029"}, {"雷城电子科技", "CUST030"},
+                {"闪电智能制造", "CUST031"}, {"星云数据服务", "CUST032"}, {"银河系统集成", "CUST033"},
+                {"宇宙科技发展", "CUST034"}, {"地球电子工程", "CUST035"}
+            };
             
-            jdbcTemplate.execute(insertSql);
-            log.info("示例销售订单数据插入成功");
+            String[] orderDates = {
+                "2026-03-01", "2026-03-05", "2026-03-10", "2026-03-15", "2026-03-20",
+                "2026-03-25", "2026-03-30", "2026-04-01", "2026-04-03", "2026-04-05",
+                "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-11",
+                "2026-04-12", "2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16",
+                "2026-04-17", "2026-04-18", "2026-04-19", "2026-04-20", "2026-04-21",
+                "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-25", "2026-04-26",
+                "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30"
+            };
+            
+            String[] deliveryDates = {
+                "2026-03-15", "2026-03-20", "2026-03-25", "2026-03-30", "2026-04-05",
+                "2026-04-10", "2026-04-15", "2026-04-15", "2026-04-18", "2026-04-20",
+                "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-25", "2026-04-26",
+                "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01",
+                "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-06",
+                "2026-05-07", "2026-05-08", "2026-05-09", "2026-05-10", "2026-05-11",
+                "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15"
+            };
+            
+            int[] statuses = {1, 2, 2, 3, 4, 1, 2, 2, 3, 4, 1, 2, 2, 3, 4, 1, 2, 2, 3, 4,
+                               1, 2, 2, 3, 4, 1, 2, 2, 3, 4, 1, 2, 2, 3, 4};
+            
+            int[] orderTypes = {1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2,
+                                 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2};
+            
+            for (int i = 0; i < 35; i++) {
+                String orderNo = String.format("SO2026%06d", (i + 1));
+                String customerName = customers[i % customers.length][0];
+                String customerCode = customers[i % customers.length][1];
+                int orderType = orderTypes[i % orderTypes.length];
+                String orderDate = orderDates[i % orderDates.length];
+                String deliveryDate = deliveryDates[i % deliveryDates.length];
+                java.math.BigDecimal totalAmount = new java.math.BigDecimal(50000 + (i * 15000));
+                String remark = String.format("%s采购订单，产品编号PRD%03d，数量%d台", 
+                    customerName, (i % 35) + 1, 10 + (i % 10) * 5);
+                int status = statuses[i % statuses.length];
+                
+                jdbcTemplate.update(
+                    "INSERT IGNORE INTO `erp_sales_order` (`order_no`, `customer_name`, `customer_code`, `order_type`, `order_date`, `delivery_date`, `total_amount`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    orderNo, customerName, customerCode, orderType, orderDate, deliveryDate, totalAmount, remark, status
+                );
+            }
+            
+            log.info("示例销售订单数据插入成功（35条）");
             
         } catch (Exception e) {
             log.error("插入示例销售订单数据失败: {}", e.getMessage());
@@ -1061,7 +1144,10 @@ public class ErpDataInitializer implements ApplicationRunner {
             if (count != null && count > 0) {
                 log.info("销售订单明细表 erp_sales_order_item 已存在");
                 Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_sales_order_item", Long.class);
-                if (dataCount != null && dataCount == 0) {
+                if (dataCount != null && dataCount < 30) {
+                    log.info("销售订单明细表数据不足（{}条），补充示例数据...", dataCount);
+                    insertSampleSalesOrderItemData();
+                } else if (dataCount != null && dataCount == 0) {
                     log.info("销售订单明细表为空，插入示例数据...");
                     insertSampleSalesOrderItemData();
                 }
@@ -1110,7 +1196,7 @@ public class ErpDataInitializer implements ApplicationRunner {
     }
 
     /**
-     * 插入示例销售订单明细数据
+     * 插入示例销售订单明细数据（每订单2-4个产品，共约90条）
      */
     private void insertSampleSalesOrderItemData() {
         try {
@@ -1122,26 +1208,37 @@ public class ErpDataInitializer implements ApplicationRunner {
             );
             
             if (!orders.isEmpty() && !products.isEmpty()) {
-                for (int i = 0; i < Math.min(orders.size(), products.size()); i++) {
+                int itemCount = 0;
+                for (int i = 0; i < orders.size(); i++) {
                     Map<String, Object> order = orders.get(i);
-                    Map<String, Object> product = products.get(i % products.size());
-                    
                     Long orderId = ((Number) order.get("id")).longValue();
                     String orderNo = (String) order.get("order_no");
-                    Long productId = ((Number) product.get("id")).longValue();
-                    String productCode = (String) product.get("product_code");
-                    String productName = (String) product.get("product_name");
                     
-                    jdbcTemplate.update(
-                        "INSERT INTO `erp_sales_order_item` (`order_id`, `order_no`, `product_id`, `product_code`, `product_name`, `specification`, `unit`, `quantity`, `unit_price`, `amount`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        orderId, orderNo, productId, productCode, productName, "规格型号" + (i + 1), "台", 
-                        new java.math.BigDecimal(50 + i * 20), 
-                        new java.math.BigDecimal(2500 + i * 100), 
-                        new java.math.BigDecimal((50 + i * 20) * (2500 + i * 100)), 
-                        1
-                    );
+                    int itemsPerOrder = 2 + (i % 3);
+                    for (int j = 0; j < itemsPerOrder; j++) {
+                        int productIndex = (i * 3 + j) % products.size();
+                        Map<String, Object> product = products.get(productIndex);
+                        
+                        Long productId = ((Number) product.get("id")).longValue();
+                        String productCode = (String) product.get("product_code");
+                        String productName = (String) product.get("product_name");
+                        
+                        int quantity = 10 + (i % 5) * 10 + j * 5;
+                        int unitPrice = 2000 + (productIndex % 10) * 500;
+                        int amount = quantity * unitPrice;
+                        
+                        jdbcTemplate.update(
+                            "INSERT INTO `erp_sales_order_item` (`order_id`, `order_no`, `product_id`, `product_code`, `product_name`, `specification`, `unit`, `quantity`, `unit_price`, `amount`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            orderId, orderNo, productId, productCode, productName, "规格型号" + (productIndex + 1), "台", 
+                            new java.math.BigDecimal(quantity), 
+                            new java.math.BigDecimal(unitPrice), 
+                            new java.math.BigDecimal(amount), 
+                            1
+                        );
+                        itemCount++;
+                    }
                 }
-                log.info("示例销售订单明细数据插入成功");
+                log.info("示例销售订单明细数据插入成功（共{}条）", itemCount);
             }
             
         } catch (Exception e) {
@@ -1162,7 +1259,10 @@ public class ErpDataInitializer implements ApplicationRunner {
             if (count != null && count > 0) {
                 log.info("预测单表 erp_forecast_order 已存在");
                 Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_forecast_order", Long.class);
-                if (dataCount != null && dataCount == 0) {
+                if (dataCount != null && dataCount < 30) {
+                    log.info("预测单表数据不足（{}条），补充示例数据...", dataCount);
+                    insertSampleForecastOrderData();
+                } else if (dataCount != null && dataCount == 0) {
                     log.info("预测单表为空，插入示例数据...");
                     insertSampleForecastOrderData();
                 }
@@ -1208,19 +1308,72 @@ public class ErpDataInitializer implements ApplicationRunner {
     }
 
     /**
-     * 插入示例预测单数据
+     * 插入示例预测单数据（35条）
      */
     private void insertSampleForecastOrderData() {
         try {
-            String insertSql = """
-                INSERT INTO `erp_forecast_order` (`forecast_no`, `forecast_name`, `forecast_type`, `start_date`, `end_date`, `total_quantity`, `remark`, `status`) VALUES
-                ('FC2026Q2001', 'Q2季度产品需求预测', 2, '2026-04-01', '2026-06-30', 1500.00, '根据2025年Q2历史数据及市场趋势分析', 2),
-                ('FC2026M5001', '2026年5月月度预测', 1, '2026-05-01', '2026-05-31', 800.00, '针对5月份旺季的需求预测', 1),
-                ('FC2026Y001', '2026年度产品预测', 3, '2026-01-01', '2026-12-31', 6000.00, '2026全年销售预测', 1)
-                """;
+            String[][] forecastNames = {
+                {"Q1季度产品需求预测", "2026-01-01", "2026-03-31"},
+                {"Q2季度产品需求预测", "2026-04-01", "2026-06-30"},
+                {"Q3季度产品需求预测", "2026-07-01", "2026-09-30"},
+                {"Q4季度产品需求预测", "2026-10-01", "2026-12-31"},
+                {"1月月度预测", "2026-01-01", "2026-01-31"},
+                {"2月月度预测", "2026-02-01", "2026-02-28"},
+                {"3月月度预测", "2026-03-01", "2026-03-31"},
+                {"4月月度预测", "2026-04-01", "2026-04-30"},
+                {"5月月度预测", "2026-05-01", "2026-05-31"},
+                {"6月月度预测", "2026-06-01", "2026-06-30"},
+                {"7月月度预测", "2026-07-01", "2026-07-31"},
+                {"8月月度预测", "2026-08-01", "2026-08-31"},
+                {"9月月度预测", "2026-09-01", "2026-09-30"},
+                {"10月月度预测", "2026-10-01", "2026-10-31"},
+                {"11月月度预测", "2026-11-01", "2026-11-30"},
+                {"12月月度预测", "2026-12-01", "2026-12-31"},
+                {"2026年度产品预测", "2026-01-01", "2026-12-31"},
+                {"上半年预测", "2026-01-01", "2026-06-30"},
+                {"下半年预测", "2026-07-01", "2026-12-31"},
+                {"春节旺季预测", "2026-01-20", "2026-02-20"},
+                {"五一黄金周预测", "2026-04-25", "2026-05-10"},
+                {"618电商大促预测", "2026-06-01", "2026-06-30"},
+                {"暑假促销预测", "2026-07-01", "2026-08-31"},
+                {"十一黄金周预测", "2026-09-25", "2026-10-10"},
+                {"双11大促预测", "2026-10-20", "2026-11-20"},
+                {"双12促销预测", "2026-12-01", "2026-12-15"},
+                {"年终备货预测", "2026-11-15", "2026-12-31"},
+                {"计算机设备专项预测", "2026-01-01", "2026-12-31"},
+                {"办公设备专项预测", "2026-01-01", "2026-12-31"},
+                {"网络设备专项预测", "2026-01-01", "2026-12-31"},
+                {"工控设备专项预测", "2026-01-01", "2026-12-31"},
+                {"存储设备专项预测", "2026-01-01", "2026-12-31"},
+                {"服务器设备专项预测", "2026-01-01", "2026-12-31"},
+                {"电源设备专项预测", "2026-01-01", "2026-12-31"},
+                {"配件及工具专项预测", "2026-01-01", "2026-12-31"}
+            };
             
-            jdbcTemplate.execute(insertSql);
-            log.info("示例预测单数据插入成功");
+            int[] forecastTypes = {2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                                   3, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3};
+            
+            int[] statuses = {2, 2, 1, 1, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 2, 1, 4, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+            
+            for (int i = 0; i < 35; i++) {
+                String forecastNo = String.format("FC2026%05d", (i + 1));
+                String forecastName = forecastNames[i][0];
+                int forecastType = forecastTypes[i];
+                String startDate = forecastNames[i][1];
+                String endDate = forecastNames[i][2];
+                java.math.BigDecimal totalQuantity = new java.math.BigDecimal(500 + (i * 200));
+                String remark = String.format("%s，基于历史数据分析及市场趋势预测，预计需求数量约%d台", 
+                    forecastName, 500 + (i * 200));
+                int status = statuses[i];
+                
+                jdbcTemplate.update(
+                    "INSERT IGNORE INTO `erp_forecast_order` (`forecast_no`, `forecast_name`, `forecast_type`, `start_date`, `end_date`, `total_quantity`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    forecastNo, forecastName, forecastType, startDate, endDate, totalQuantity, remark, status
+                );
+            }
+            
+            log.info("示例预测单数据插入成功（35条）");
             
         } catch (Exception e) {
             log.error("插入示例预测单数据失败: {}", e.getMessage());
@@ -1240,7 +1393,10 @@ public class ErpDataInitializer implements ApplicationRunner {
             if (count != null && count > 0) {
                 log.info("预测单明细表 erp_forecast_order_item 已存在");
                 Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_forecast_order_item", Long.class);
-                if (dataCount != null && dataCount == 0) {
+                if (dataCount != null && dataCount < 30) {
+                    log.info("预测单明细表数据不足（{}条），补充示例数据...", dataCount);
+                    insertSampleForecastOrderItemData();
+                } else if (dataCount != null && dataCount == 0) {
                     log.info("预测单明细表为空，插入示例数据...");
                     insertSampleForecastOrderItemData();
                 }
@@ -1289,7 +1445,7 @@ public class ErpDataInitializer implements ApplicationRunner {
     }
 
     /**
-     * 插入示例预测单明细数据
+     * 插入示例预测单明细数据（每预测单2-4个产品，共约90条）
      */
     private void insertSampleForecastOrderItemData() {
         try {
@@ -1301,26 +1457,35 @@ public class ErpDataInitializer implements ApplicationRunner {
             );
             
             if (!forecasts.isEmpty() && !products.isEmpty()) {
-                for (int i = 0; i < Math.min(forecasts.size(), products.size()); i++) {
+                int itemCount = 0;
+                for (int i = 0; i < forecasts.size(); i++) {
                     Map<String, Object> forecast = forecasts.get(i);
-                    Map<String, Object> product = products.get(i % products.size());
-                    
                     Long forecastId = ((Number) forecast.get("id")).longValue();
                     String forecastNo = (String) forecast.get("forecast_no");
-                    Long productId = ((Number) product.get("id")).longValue();
-                    String productCode = (String) product.get("product_code");
-                    String productName = (String) product.get("product_name");
                     
-                    jdbcTemplate.update(
-                        "INSERT INTO `erp_forecast_order_item` (`forecast_id`, `forecast_no`, `product_id`, `product_code`, `product_name`, `specification`, `unit`, `forecast_quantity`, `actual_quantity`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        forecastId, forecastNo, productId, productCode, productName, "规格型号" + (i + 1), "台", 
-                        new java.math.BigDecimal(300 + i * 100), 
-                        new java.math.BigDecimal(0), 
-                        "预测需求，来源于市场分析", 
-                        1
-                    );
+                    int itemsPerForecast = 2 + (i % 3);
+                    for (int j = 0; j < itemsPerForecast; j++) {
+                        int productIndex = (i * 3 + j) % products.size();
+                        Map<String, Object> product = products.get(productIndex);
+                        
+                        Long productId = ((Number) product.get("id")).longValue();
+                        String productCode = (String) product.get("product_code");
+                        String productName = (String) product.get("product_name");
+                        
+                        int forecastQty = 100 + (i % 10) * 50 + j * 20;
+                        
+                        jdbcTemplate.update(
+                            "INSERT INTO `erp_forecast_order_item` (`forecast_id`, `forecast_no`, `product_id`, `product_code`, `product_name`, `specification`, `unit`, `forecast_quantity`, `actual_quantity`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            forecastId, forecastNo, productId, productCode, productName, "规格型号" + (productIndex + 1), "台", 
+                            new java.math.BigDecimal(forecastQty), 
+                            new java.math.BigDecimal(0), 
+                            "预测需求，来源于市场数据分析", 
+                            1
+                        );
+                        itemCount++;
+                    }
                 }
-                log.info("示例预测单明细数据插入成功");
+                log.info("示例预测单明细数据插入成功（共{}条）", itemCount);
             }
             
         } catch (Exception e) {
@@ -1341,7 +1506,10 @@ public class ErpDataInitializer implements ApplicationRunner {
             if (count != null && count > 0) {
                 log.info("库存表 erp_inventory 已存在");
                 Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_inventory", Long.class);
-                if (dataCount != null && dataCount == 0) {
+                if (dataCount != null && dataCount < 30) {
+                    log.info("库存表数据不足（{}条），补充示例数据...", dataCount);
+                    insertSampleInventoryData();
+                } else if (dataCount != null && dataCount == 0) {
                     log.info("库存表为空，插入示例数据...");
                     insertSampleInventoryData();
                 }
@@ -1397,7 +1565,7 @@ public class ErpDataInitializer implements ApplicationRunner {
     }
 
     /**
-     * 插入示例库存数据
+     * 插入示例库存数据（每产品2个仓库，共约70条）
      */
     private void insertSampleInventoryData() {
         try {
@@ -1406,31 +1574,45 @@ public class ErpDataInitializer implements ApplicationRunner {
             );
             
             if (!products.isEmpty()) {
-                String[] warehouses = {"WH001", "WH002", "WH001"};
-                String[] warehouseNames = {"主仓库", "备用仓库", "主仓库"};
-                String[] locations = {"A-01-01", "B-02-03", "A-01-02"};
+                String[][] warehouses = {
+                    {"WH001", "主仓库", "A-01-01"},
+                    {"WH002", "备用仓库", "B-02-03"},
+                    {"WH001", "主仓库", "A-01-02"},
+                    {"WH003", "华东分仓", "C-03-01"},
+                    {"WH004", "华南分仓", "D-01-05"}
+                };
                 
-                for (int i = 0; i < Math.min(products.size(), 3); i++) {
+                int inventoryCount = 0;
+                for (int i = 0; i < products.size(); i++) {
                     Map<String, Object> product = products.get(i);
                     Long productId = ((Number) product.get("id")).longValue();
                     String productCode = (String) product.get("product_code");
                     String productName = (String) product.get("product_name");
                     
-                    java.math.BigDecimal quantity = new java.math.BigDecimal(100 + i * 50);
-                    java.math.BigDecimal lockedQuantity = new java.math.BigDecimal(10 + i * 5);
-                    java.math.BigDecimal availableQuantity = quantity.subtract(lockedQuantity);
-                    java.math.BigDecimal safetyStock = new java.math.BigDecimal(50 + i * 20);
-                    
-                    jdbcTemplate.update(
-                        "INSERT INTO `erp_inventory` (`product_id`, `product_code`, `product_name`, `specification`, `unit`, `warehouse_code`, `warehouse_name`, `location_code`, `quantity`, `locked_quantity`, `available_quantity`, `safety_stock`, `batch_no`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        productId, productCode, productName, "规格型号" + (i + 1), "台", 
-                        warehouses[i], warehouseNames[i], locations[i], 
-                        quantity, lockedQuantity, availableQuantity, safetyStock, 
-                        "BATCH" + (202604 + i) + String.format("%03d", i + 1), 
-                        "示例库存数据", 1
-                    );
+                    int warehousesPerProduct = 2 + (i % 2);
+                    for (int w = 0; w < warehousesPerProduct; w++) {
+                        int whIndex = (i + w) % warehouses.length;
+                        
+                        int baseQty = 50 + (i % 10) * 20 + w * 10;
+                        int lockedQty = 5 + (i % 5) * 3 + w * 2;
+                        
+                        java.math.BigDecimal quantity = new java.math.BigDecimal(baseQty);
+                        java.math.BigDecimal lockedQuantity = new java.math.BigDecimal(lockedQty);
+                        java.math.BigDecimal availableQuantity = quantity.subtract(lockedQuantity);
+                        java.math.BigDecimal safetyStock = new java.math.BigDecimal(10 + (i % 8) * 5);
+                        
+                        jdbcTemplate.update(
+                            "INSERT INTO `erp_inventory` (`product_id`, `product_code`, `product_name`, `specification`, `unit`, `warehouse_code`, `warehouse_name`, `location_code`, `quantity`, `locked_quantity`, `available_quantity`, `safety_stock`, `batch_no`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            productId, productCode, productName, "规格型号" + (i + 1), "台", 
+                            warehouses[whIndex][0], warehouses[whIndex][1], warehouses[whIndex][2], 
+                            quantity, lockedQuantity, availableQuantity, safetyStock, 
+                            "BATCH" + (20260400 + i * 10 + w), 
+                            "示例库存数据", 1
+                        );
+                        inventoryCount++;
+                    }
                 }
-                log.info("示例库存数据插入成功");
+                log.info("示例库存数据插入成功（共{}条）", inventoryCount);
             }
             
         } catch (Exception e) {
