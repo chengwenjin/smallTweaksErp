@@ -45,6 +45,7 @@ public class SecurityConfig implements WebMvcConfigurer {
                     "/api/dev/**",            // 开发工具接口
                     "/api/test/**",           // 测试接口
                     "/api/data-generator/**", // 数据生成器接口
+                    "/api/erp/gantt/**",      // 甘特图接口
                     "/doc.html",              // Knife4j文档首页
                     "/swagger-ui/**",         // Swagger UI资源
                     "/v3/api-docs/**",        // OpenAPI文档
@@ -76,7 +77,8 @@ public class SecurityConfig implements WebMvcConfigurer {
                     "/api/auth/login",              // 登录
                     "/api/dev/**",                  // 开发工具接口
                     "/api/test/**",                 // 测试接口
-                    "/api/data-generator/**"        // 数据生成器接口
+                    "/api/data-generator/**",       // 数据生成器接口
+                    "/api/erp/gantt/**"             // 甘特图接口
                 );
     }
 }
