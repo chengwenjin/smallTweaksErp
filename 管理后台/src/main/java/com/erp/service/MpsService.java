@@ -189,7 +189,7 @@ public class MpsService {
         List<ErpNetRequirement> netRequirements = netRequirementMapper.selectList(
             new LambdaQueryWrapper<ErpNetRequirement>()
                 .eq(ErpNetRequirement::getStatus, 1)
-                .orderByAsc(ErpNetRequirement::getPlanStartDate)
+                .orderByAsc(ErpNetRequirement::getRequirementDate)
         );
         
         for (ErpNetRequirement netReq : netRequirements) {
@@ -221,7 +221,7 @@ public class MpsService {
             mps.setProductName(netReq.getProductName());
             mps.setNetRequirement(netReq.getNetRequirement());
             mps.setPlannedQuantity(netReq.getNetRequirement());
-            mps.setPlanStartDate(netReq.getPlanStartDate());
+            mps.setPlanStartDate(netReq.getRequirementDate());
             mps.setPlanEndDate(balanceResult.planEndDate);
             mps.setEquipmentId(balanceResult.equipmentId);
             mps.setEquipmentCode(balanceResult.equipmentCode);
@@ -253,7 +253,7 @@ public class MpsService {
         );
         
         if (equipments.isEmpty()) {
-            result.planEndDate = netReq.getPlanStartDate().plusDays(7);
+            result.planEndDate = netReq.getRequirementDate().plusDays(7);
             result.capacityRequired = netReq.getNetRequirement();
             result.capacityAvailable = BigDecimal.ZERO;
             result.capacityUtilization = BigDecimal.ZERO;
@@ -285,14 +285,14 @@ public class MpsService {
         
         if (capacityPerDay.compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal days = netReq.getNetRequirement().divide(capacityPerDay, 0, RoundingMode.UP);
-            result.planEndDate = netReq.getPlanStartDate().plusDays(days.longValue());
+            result.planEndDate = netReq.getRequirementDate().plusDays(days.longValue());
             result.capacityRequired = netReq.getNetRequirement();
             result.capacityAvailable = capacityPerDay.multiply(new BigDecimal(days.longValue()));
             result.capacityUtilization = netReq.getNetRequirement()
                 .divide(result.capacityAvailable, 2, RoundingMode.HALF_UP)
                 .multiply(new BigDecimal(100));
         } else {
-            result.planEndDate = netReq.getPlanStartDate().plusDays(7);
+            result.planEndDate = netReq.getRequirementDate().plusDays(7);
             result.capacityRequired = netReq.getNetRequirement();
             result.capacityAvailable = BigDecimal.ZERO;
             result.capacityUtilization = BigDecimal.ZERO;
