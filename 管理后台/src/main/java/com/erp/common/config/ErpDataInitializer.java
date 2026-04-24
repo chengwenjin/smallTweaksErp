@@ -87,6 +87,9 @@ public class ErpDataInitializer implements ApplicationRunner {
             // 19. 检查并插入产能平衡和齐套预警菜单数据
             checkAndInsertCapacityAndKittingMenuData();
             
+            // 20. 检查并插入可视化排程和甘特图菜单数据
+            checkAndInsertGanttMenuData();
+            
             log.info("========================================");
             log.info("   ERP模块数据初始化完成！");
             log.info("========================================");
@@ -2625,7 +2628,7 @@ public class ErpDataInitializer implements ApplicationRunner {
         try {
             // 查找所有新插入的菜单ID
             List<Map<String, Object>> menuIds = jdbcTemplate.queryForList(
-                "SELECT id FROM sys_menu WHERE path LIKE '/erp/production%' OR path LIKE '/erp/capacity%' OR path LIKE '/erp/kitting%' OR menu_name IN ('生产计划与排程管理', '产能平衡', '齐套预警', '设备管理', '班组管理', '人员排班', '主生产计划(MPS)', '齐套预警')"
+                "SELECT id FROM sys_menu WHERE path LIKE '/erp/production%' OR path LIKE '/erp/capacity%' OR path LIKE '/erp/kitting%' OR path LIKE '/erp/scheduling%' OR menu_name IN ('生产计划与排程管理', '产能平衡', '齐套预警', '可视化排程', '甘特图展示', '设备管理', '班组管理', '人员排班', '主生产计划(MPS)', '齐套预警')"
             );
             
             for (Map<String, Object> menu : menuIds) {
@@ -2639,6 +2642,54 @@ public class ErpDataInitializer implements ApplicationRunner {
             log.info("已给超级管理员分配新菜单权限");
         } catch (Exception e) {
             log.error("分配菜单权限失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并插入可视化排程和甘特图菜单数据
+     */
+    private void checkAndInsertGanttMenuData() {
+        try {
+            // 查找生产计划与排程管理菜单
+            List<Map<String, Object>> prodPlanMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = '生产计划与排程管理' AND parent_id = 0 LIMIT 1"
+            );
+            
+            if (prodPlanMenus.isEmpty()) {
+                log.warn("生产计划与排程管理菜单不存在，跳过可视化排程菜单插入");
+                return;
+            }
+            
+            Long prodPlanMenuId = ((Number) prodPlanMenus.get(0).get("id")).longValue();
+            log.info("生产计划与排程管理菜单ID: {}", prodPlanMenuId);
+            
+            // 插入可视化排程菜单
+            List<Map<String, Object>> schedulingMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = '可视化排程' AND parent_id = ? LIMIT 1",
+                prodPlanMenuId
+            );
+            
+            Long schedulingMenuId = 0L;
+            if (schedulingMenus.isEmpty()) {
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    prodPlanMenuId, "可视化排程", 1, null, "scheduling", "Layout", "Timer", 4, 1, 1, 1
+                );
+                schedulingMenuId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                log.info("插入可视化排程菜单，ID: {}", schedulingMenuId);
+            } else {
+                schedulingMenuId = ((Number) schedulingMenus.get(0).get("id")).longValue();
+                log.info("可视化排程菜单已存在，ID: {}", schedulingMenuId);
+            }
+            
+            // 插入甘特图展示子菜单
+            checkAndInsertSubMenu(schedulingMenuId, "甘特图展示", "erp:gantt:list", "gantt-chart", "erp/GanttChart", "Histogram");
+            
+            // 给超级管理员分配新菜单权限
+            assignMenuPermissionsToAdmin();
+            
+        } catch (Exception e) {
+            log.error("插入可视化排程和甘特图菜单失败: {}", e.getMessage());
         }
     }
 }
