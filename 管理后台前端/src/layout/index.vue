@@ -80,6 +80,10 @@
             <template #title>齐套预警</template>
             <el-menu-item index="/erp/kitting-alerts">齐套预警</el-menu-item>
           </el-sub-menu>
+          <el-sub-menu index="/production/scheduling">
+            <template #title>可视化排程</template>
+            <el-menu-item index="/erp/gantt-chart">甘特图展示</el-menu-item>
+          </el-sub-menu>
         </el-sub-menu>
       </el-menu>
     </el-aside>

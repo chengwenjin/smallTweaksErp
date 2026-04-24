@@ -138,6 +138,12 @@ const routes: RouteRecordRaw[] = [
         name: 'KittingAlertManagement',
         component: () => import('@/views/erp/KittingAlert.vue'),
         meta: { title: '齐套预警' }
+      },
+      {
+        path: 'erp/gantt-chart',
+        name: 'GanttChartManagement',
+        component: () => import('@/views/erp/GanttChart.vue'),
+        meta: { title: '甘特图展示' }
       }
     ]
   }
