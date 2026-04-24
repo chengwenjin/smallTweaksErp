@@ -108,6 +108,36 @@ const routes: RouteRecordRaw[] = [
         name: 'NetRequirementManagement',
         component: () => import('@/views/erp/NetRequirement.vue'),
         meta: { title: '净需求计算' }
+      },
+      {
+        path: 'erp/equipments',
+        name: 'EquipmentManagement',
+        component: () => import('@/views/erp/Equipment.vue'),
+        meta: { title: '设备管理' }
+      },
+      {
+        path: 'erp/work-groups',
+        name: 'WorkGroupManagement',
+        component: () => import('@/views/erp/WorkGroup.vue'),
+        meta: { title: '班组管理' }
+      },
+      {
+        path: 'erp/employee-schedules',
+        name: 'EmployeeScheduleManagement',
+        component: () => import('@/views/erp/EmployeeSchedule.vue'),
+        meta: { title: '人员排班' }
+      },
+      {
+        path: 'erp/mps',
+        name: 'MpsManagement',
+        component: () => import('@/views/erp/Mps.vue'),
+        meta: { title: '主生产计划' }
+      },
+      {
+        path: 'erp/kitting-alerts',
+        name: 'KittingAlertManagement',
+        component: () => import('@/views/erp/KittingAlert.vue'),
+        meta: { title: '齐套预警' }
       }
     ]
   }
