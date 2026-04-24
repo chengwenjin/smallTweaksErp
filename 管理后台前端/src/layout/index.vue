@@ -69,6 +69,17 @@
             <el-menu-item index="/erp/demand-sources">需求来源</el-menu-item>
             <el-menu-item index="/erp/net-requirements">净需求计算</el-menu-item>
           </el-sub-menu>
+          <el-sub-menu index="/production/capacity">
+            <template #title>产能平衡</template>
+            <el-menu-item index="/erp/equipments">设备管理</el-menu-item>
+            <el-menu-item index="/erp/work-groups">班组管理</el-menu-item>
+            <el-menu-item index="/erp/employee-schedules">人员排班</el-menu-item>
+            <el-menu-item index="/erp/mps">主生产计划(MPS)</el-menu-item>
+          </el-sub-menu>
+          <el-sub-menu index="/production/kitting">
+            <template #title>齐套预警</template>
+            <el-menu-item index="/erp/kitting-alerts">齐套预警</el-menu-item>
+          </el-sub-menu>
         </el-sub-menu>
       </el-menu>
     </el-aside>

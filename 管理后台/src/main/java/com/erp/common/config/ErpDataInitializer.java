@@ -66,7 +66,22 @@ public class ErpDataInitializer implements ApplicationRunner {
             // 12. 检查并创建净需求表
             checkAndCreateNetRequirementTable();
             
-            // 13. 检查并插入菜单数据
+            // 13. 检查并创建设备表
+            checkAndCreateEquipmentTable();
+            
+            // 14. 检查并创建班组表
+            checkAndCreateWorkGroupTable();
+            
+            // 15. 检查并创建人员排班表
+            checkAndCreateEmployeeScheduleTable();
+            
+            // 16. 检查并创建主生产计划表
+            checkAndCreateMpsTable();
+            
+            // 17. 检查并创建齐套预警表
+            checkAndCreateKittingAlertTable();
+            
+            // 18. 检查并插入菜单数据
             checkAndInsertMenuData();
             
             log.info("========================================");
