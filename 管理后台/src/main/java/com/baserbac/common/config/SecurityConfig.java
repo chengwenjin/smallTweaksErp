@@ -44,6 +44,7 @@ public class SecurityConfig implements WebMvcConfigurer {
                     "/api/auth/**",           // 认证相关接口
                     "/api/dev/**",            // 开发工具接口
                     "/api/test/**",           // 测试接口
+                    "/api/data-generator/**", // 数据生成器接口
                     "/doc.html",              // Knife4j文档首页
                     "/swagger-ui/**",         // Swagger UI资源
                     "/v3/api-docs/**",        // OpenAPI文档
@@ -71,8 +72,11 @@ public class SecurityConfig implements WebMvcConfigurer {
         registry.addInterceptor(permissionInterceptor)
                 .addPathPatterns("/api/**")  // 拦截所有API请求
                 .excludePathPatterns(
-                    "/api/auth/captcha",     // 验证码
-                    "/api/auth/login"        // 登录
+                    "/api/auth/captcha",           // 验证码
+                    "/api/auth/login",              // 登录
+                    "/api/dev/**",                  // 开发工具接口
+                    "/api/test/**",                 // 测试接口
+                    "/api/data-generator/**"        // 数据生成器接口
                 );
     }
 }
