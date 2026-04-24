@@ -84,6 +84,9 @@ public class ErpDataInitializer implements ApplicationRunner {
             // 18. 检查并插入菜单数据
             checkAndInsertMenuData();
             
+            // 19. 检查并插入产能平衡和齐套预警菜单数据
+            checkAndInsertCapacityAndKittingMenuData();
+            
             log.info("========================================");
             log.info("   ERP模块数据初始化完成！");
             log.info("========================================");
@@ -1751,6 +1754,891 @@ public class ErpDataInitializer implements ApplicationRunner {
             
         } catch (Exception e) {
             log.error("创建净需求表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建设备表
+     */
+    private void checkAndCreateEquipmentTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_equipment'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("设备表 erp_equipment 已存在");
+                Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_equipment", Long.class);
+                if (dataCount != null && dataCount < 30) {
+                    log.info("设备表数据不足（{}条），补充示例数据...", dataCount);
+                    insertSampleEquipmentData();
+                } else if (dataCount != null && dataCount == 0) {
+                    log.info("设备表为空，插入示例数据...");
+                    insertSampleEquipmentData();
+                }
+                return;
+            }
+
+            log.info("设备表 erp_equipment 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_equipment` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `equipment_code` VARCHAR(50) NOT NULL COMMENT '设备编码',
+                    `equipment_name` VARCHAR(100) NOT NULL COMMENT '设备名称',
+                    `equipment_type` VARCHAR(50) DEFAULT NULL COMMENT '设备类型',
+                    `specification` VARCHAR(200) DEFAULT NULL COMMENT '规格型号',
+                    `brand` VARCHAR(50) DEFAULT NULL COMMENT '品牌',
+                    `model` VARCHAR(50) DEFAULT NULL COMMENT '型号',
+                    `capacity_per_hour` DECIMAL(12,2) DEFAULT 0.00 COMMENT '每小时产能',
+                    `capacity_unit` VARCHAR(20) DEFAULT NULL COMMENT '产能单位',
+                    `purchase_date` DATE DEFAULT NULL COMMENT '购买日期',
+                    `warranty_expiry_date` DATE DEFAULT NULL COMMENT '保修到期日期',
+                    `workshop` VARCHAR(50) DEFAULT NULL COMMENT '车间',
+                    `workcenter` VARCHAR(50) DEFAULT NULL COMMENT '工作中心',
+                    `maintenance_date` DATE DEFAULT NULL COMMENT '上次维护日期',
+                    `maintenance_interval_days` INT DEFAULT 90 COMMENT '维护间隔天数',
+                    `responsible_person` VARCHAR(50) DEFAULT NULL COMMENT '负责人',
+                    `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1正常 2维护中 3停用 4报废',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_equipment_code` (`equipment_code`),
+                    KEY `idx_equipment_name` (`equipment_name`),
+                    KEY `idx_equipment_type` (`equipment_type`),
+                    KEY `idx_workshop` (`workshop`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='设备管理表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("设备表创建成功");
+            
+            insertSampleEquipmentData();
+            
+        } catch (Exception e) {
+            log.error("创建设备表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例设备数据（35条）
+     */
+    private void insertSampleEquipmentData() {
+        try {
+            String[][] equipments = {
+                {"EQ001", "CNC数控车床", "车床", "FANUC 0i-MF", "发那科", "α-D21MiA", "50.00", "件", "2023-01-15", "2026-01-14", "一车间", "数控中心", "2026-01-10", "90", "张工", "高精度数控加工设备"},
+                {"EQ002", "立式加工中心", "加工中心", "VMC-850", "沈阳机床", "VMC850B", "30.00", "件", "2023-03-20", "2026-03-19", "一车间", "数控中心", "2026-02-15", "90", "李工", "立式数控加工中心"},
+                {"EQ003", "卧式铣床", "铣床", "X6132", "北京一机", "X6132A", "20.00", "件", "2022-06-10", "2025-06-09", "一车间", "机加工区", "2025-12-20", "60", "王工", "普通卧式铣床"},
+                {"EQ004", "平面磨床", "磨床", "M7130", "杭州机床", "M7130H", "15.00", "件", "2022-08-25", "2025-08-24", "一车间", "机加工区", "2026-01-05", "90", "刘工", "精密平面磨床"},
+                {"EQ005", "摇臂钻床", "钻床", "Z3050", "中捷", "Z3050×16", "25.00", "件", "2023-02-14", "2026-02-13", "一车间", "机加工区", "2026-02-01", "90", "陈工", "液压摇臂钻床"},
+                {"EQ006", "线切割机", "线切割", "DK7740", "苏州三光", "DK7740", "10.00", "件", "2023-04-18", "2026-04-17", "一车间", "电加工区", "2026-01-25", "60", "赵工", "快走丝线切割"},
+                {"EQ007", "电火花机", "电火花", "EDM450", "台一", "EDM-450", "8.00", "件", "2023-05-22", "2026-05-21", "一车间", "电加工区", "2026-02-10", "90", "孙工", "精密电火花成型机"},
+                {"EQ008", "数控折弯机", "折弯机", "WC67Y-100", "扬力", "WC67Y-100/3200", "40.00", "件", "2022-11-30", "2025-11-29", "二车间", "钣金区", "2025-11-15", "60", "周工", "液压板料折弯机"},
+                {"EQ009", "数控剪板机", "剪板机", "QC12Y-6", "扬力", "QC12Y-6×3200", "60.00", "件", "2022-12-15", "2025-12-14", "二车间", "钣金区", "2025-12-01", "60", "吴工", "液压摆式剪板机"},
+                {"EQ010", "激光切割机", "切割机", "F3015", "大族激光", "F3015", "35.00", "件", "2024-01-08", "2027-01-07", "二车间", "钣金区", "2026-01-18", "90", "郑工", "光纤激光切割机"},
+                {"EQ011", "冲床", "冲床", "JH21-80", "沃得精机", "JH21-80", "45.00", "件", "2023-06-30", "2026-06-29", "二车间", "冲压区", "2026-01-22", "90", "冯工", "开式固定台压力机"},
+                {"EQ012", "数控车床", "车床", "CK6140", "大连机床", "CK6140×1000", "28.00", "件", "2022-09-12", "2025-09-11", "一车间", "数控中心", "2025-12-10", "60", "褚工", "经济型数控车床"},
+                {"EQ013", "龙门铣床", "铣床", "X2010", "北京一机", "X2010×3000", "12.00", "件", "2021-10-20", "2024-10-19", "一车间", "机加工区", "2024-10-01", "30", "卫工", "龙门铣床（待检修）"},
+                {"EQ014", "外圆磨床", "磨床", "M1432", "上海机床", "M1432B×1000", "18.00", "件", "2023-07-15", "2026-07-14", "一车间", "机加工区", "2026-01-28", "90", "蒋工", "万能外圆磨床"},
+                {"EQ015", "坐标镗床", "镗床", "TX611", "昆明机床", "TX6111C", "8.00", "件", "2022-04-05", "2025-04-04", "一车间", "精密区", "2025-03-20", "60", "沈工", "数显卧式镗床"},
+                {"EQ016", "滚齿机", "齿轮加工", "Y3180", "重庆机床", "Y3180H", "6.00", "件", "2023-08-22", "2026-08-21", "一车间", "齿轮区", "2026-02-05", "90", "韩工", "滚齿机"},
+                {"EQ017", "插齿机", "齿轮加工", "Y5132", "天津一机", "Y5132A", "5.00", "件", "2023-09-10", "2026-09-09", "一车间", "齿轮区", "2026-01-30", "90", "杨工", "插齿机"},
+                {"EQ018", "磨齿机", "齿轮加工", "Y7131", "秦川机床", "Y7131A", "4.00", "件", "2024-02-14", "2027-02-13", "一车间", "齿轮区", "2026-02-12", "90", "朱工", "磨齿机"},
+                {"EQ019", "热处理炉", "热处理", "RT-90-9", "南京摄炉", "RT-90-9", "2000.00", "千克", "2022-07-08", "2025-07-07", "三车间", "热处理区", "2025-06-25", "60", "秦工", "箱式电阻炉"},
+                {"EQ020", "淬火机床", "热处理", "GCK-500", "恒进", "GCK-500", "30.00", "件", "2023-10-18", "2026-10-17", "三车间", "热处理区", "2026-02-08", "90", "尤工", "数控淬火机床"},
+                {"EQ021", "喷砂机", "表面处理", "PS-1010", "吉川", "PS-1010A", "50.00", "件", "2023-11-25", "2026-11-24", "三车间", "表面处理区", "2026-01-15", "90", "许工", "加压式喷砂机"},
+                {"EQ022", "电泳线", "表面处理", "DY-2020", "安捷特", "DY-2020", "80.00", "件", "2024-03-20", "2027-03-19", "三车间", "表面处理区", "2026-02-18", "90", "何工", "全自动电泳生产线"},
+                {"EQ023", "喷涂线", "表面处理", "PT-3030", "裕东", "PT-3030", "60.00", "件", "2024-04-15", "2027-04-14", "三车间", "表面处理区", "2026-02-20", "90", "吕工", "粉末喷涂线"},
+                {"EQ024", "装配线", "装配", "ZX-100", "自研", "ZX-A100", "100.00", "件", "2023-12-10", "2026-12-09", "四车间", "装配区", "2026-01-20", "90", "施工", "产品装配流水线"},
+                {"EQ025", "测试台", "测试", "CS-200", "自研", "CS-T200", "150.00", "件", "2024-01-25", "2027-01-24", "四车间", "测试区", "2026-02-02", "90", "张工", "性能测试平台"},
+                {"EQ026", "老化房", "测试", "LH-300", "宏展", "LH-300", "200.00", "件", "2024-05-08", "2027-05-07", "四车间", "测试区", "2026-02-15", "90", "孔工", "高温老化试验室"},
+                {"EQ027", "包装线", "包装", "BZ-150", "永创", "BZ-150", "120.00", "件", "2024-06-12", "2027-06-11", "四车间", "包装区", "2026-02-22", "90", "曹工", "自动包装线"},
+                {"EQ028", "AGV小车", "物流", "AGV-500", "新松", "AGV-S500", "50.00", "次", "2024-07-20", "2027-07-19", "全厂", "物流区", "2026-01-25", "90", "严工", "自动导引运输车"},
+                {"EQ029", "立体货架", "仓储", "ST-1000", "宝钢", "ST-H1000", "1000.00", "托", "2022-05-10", "2025-05-09", "仓库", "仓储区", "2025-04-20", "30", "华工", "高层立体货架"},
+                {"EQ030", "叉车", "物流", "CPCD30", "合力", "CPCD30", "200.00", "托", "2023-03-05", "2026-03-04", "全厂", "物流区", "2026-01-10", "90", "金工", "内燃平衡重式叉车"},
+                {"EQ031", "堆垛机", "仓储", "SRM100", "昆船", "SRM100", "100.00", "托", "2024-02-28", "2027-02-27", "仓库", "仓储区", "2026-02-01", "90", "魏工", "巷道式堆垛机"},
+                {"EQ032", "空压机", "动力", "GA-37", "阿特拉斯", "GA37", "10000.00", "升/分", "2022-10-15", "2025-10-14", "动力房", "动力区", "2025-09-30", "60", "陶工", "螺杆式空气压缩机"},
+                {"EQ033", "变压器", "动力", "S11-1000", "正泰", "S11-1000KVA", "0.00", "kVA", "2021-11-20", "2024-11-19", "动力房", "动力区", "2024-10-30", "30", "姜工", "1000KVA电力变压器"},
+                {"EQ034", "中央空调", "动力", "MDV-560", "美的", "MDV-560W", "0.00", "kW", "2023-08-08", "2026-08-07", "全厂", "空调区", "2026-01-05", "90", "范工", "多联式中央空调"},
+                {"EQ035", "消防系统", "安全", "XFS-100", "海湾", "XFS-GST", "0.00", "套", "2022-03-12", "2025-03-11", "全厂", "安全区", "2025-02-28", "60", "方工", "火灾自动报警系统"}
+            };
+            
+            int[] statuses = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+                              1, 1, 4, 1, 1, 1, 1, 1, 1, 1,
+                              1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                              1, 1, 4, 1, 1};
+            
+            for (int i = 0; i < 35; i++) {
+                String[] eq = equipments[i];
+                jdbcTemplate.update(
+                    "INSERT IGNORE INTO `erp_equipment` (`equipment_code`, `equipment_name`, `equipment_type`, `specification`, `brand`, `model`, `capacity_per_hour`, `capacity_unit`, `purchase_date`, `warranty_expiry_date`, `workshop`, `workcenter`, `maintenance_date`, `maintenance_interval_days`, `responsible_person`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    eq[0], eq[1], eq[2], eq[3], eq[4], eq[5], 
+                    new java.math.BigDecimal(eq[6]), eq[7], eq[8], eq[9], eq[10], eq[11], eq[12], 
+                    Integer.parseInt(eq[13]), eq[14], eq[15], statuses[i]
+                );
+            }
+            
+            log.info("示例设备数据插入成功（35条）");
+            
+        } catch (Exception e) {
+            log.error("插入示例设备数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建班组表
+     */
+    private void checkAndCreateWorkGroupTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_work_group'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("班组表 erp_work_group 已存在");
+                Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_work_group", Long.class);
+                if (dataCount != null && dataCount < 30) {
+                    log.info("班组表数据不足（{}条），补充示例数据...", dataCount);
+                    insertSampleWorkGroupData();
+                } else if (dataCount != null && dataCount == 0) {
+                    log.info("班组表为空，插入示例数据...");
+                    insertSampleWorkGroupData();
+                }
+                return;
+            }
+
+            log.info("班组表 erp_work_group 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_work_group` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `group_code` VARCHAR(50) NOT NULL COMMENT '班组编码',
+                    `group_name` VARCHAR(100) NOT NULL COMMENT '班组名称',
+                    `group_type` VARCHAR(50) DEFAULT NULL COMMENT '班组类型',
+                    `supervisor` VARCHAR(50) DEFAULT NULL COMMENT '班组长',
+                    `supervisor_phone` VARCHAR(20) DEFAULT NULL COMMENT '联系电话',
+                    `workshop` VARCHAR(50) DEFAULT NULL COMMENT '车间',
+                    `workcenter` VARCHAR(50) DEFAULT NULL COMMENT '工作中心',
+                    `member_count` INT DEFAULT 0 COMMENT '成员数量',
+                    `skill_level` VARCHAR(20) DEFAULT NULL COMMENT '技能等级',
+                    `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1启用 0禁用',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_group_code` (`group_code`),
+                    KEY `idx_group_name` (`group_name`),
+                    KEY `idx_group_type` (`group_type`),
+                    KEY `idx_workshop` (`workshop`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='班组管理表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("班组表创建成功");
+            
+            insertSampleWorkGroupData();
+            
+        } catch (Exception e) {
+            log.error("创建班组表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例班组数据（35条）
+     */
+    private void insertSampleWorkGroupData() {
+        try {
+            String[][] groups = {
+                {"GRP001", "数控一班", "生产班", "张师傅", "13812345678", "一车间", "数控中心", "8", "高级"},
+                {"GRP002", "数控二班", "生产班", "李师傅", "13823456789", "一车间", "数控中心", "7", "高级"},
+                {"GRP003", "铣床班", "生产班", "王师傅", "13834567890", "一车间", "机加工区", "6", "中级"},
+                {"GRP004", "磨床班", "生产班", "刘师傅", "13845678901", "一车间", "机加工区", "5", "中级"},
+                {"GRP005", "钻床班", "生产班", "陈师傅", "13856789012", "一车间", "机加工区", "4", "中级"},
+                {"GRP006", "电加工班", "生产班", "赵师傅", "13867890123", "一车间", "电加工区", "4", "中级"},
+                {"GRP007", "钣金一班", "生产班", "孙师傅", "13878901234", "二车间", "钣金区", "9", "高级"},
+                {"GRP008", "钣金二班", "生产班", "周师傅", "13889012345", "二车间", "钣金区", "8", "高级"},
+                {"GRP009", "冲压班", "生产班", "吴师傅", "13890123456", "二车间", "冲压区", "7", "中级"},
+                {"GRP010", "激光切割班", "生产班", "郑师傅", "13801234567", "二车间", "钣金区", "6", "高级"},
+                {"GRP011", "热处理班", "生产班", "冯师傅", "13812345678", "三车间", "热处理区", "5", "高级"},
+                {"GRP012", "表面处理班", "生产班", "褚师傅", "13823456789", "三车间", "表面处理区", "6", "中级"},
+                {"GRP013", "装配一班", "生产班", "卫师傅", "13834567890", "四车间", "装配区", "10", "高级"},
+                {"GRP014", "装配二班", "生产班", "蒋师傅", "13845678901", "四车间", "装配区", "9", "高级"},
+                {"GRP015", "测试班", "生产班", "沈师傅", "13856789012", "四车间", "测试区", "7", "中级"},
+                {"GRP016", "包装班", "生产班", "韩师傅", "13867890123", "四车间", "包装区", "8", "中级"},
+                {"GRP017", "维修一班", "维修班", "杨师傅", "13878901234", "一车间", "设备区", "4", "高级"},
+                {"GRP018", "维修二班", "维修班", "朱师傅", "13889012345", "二车间", "设备区", "3", "高级"},
+                {"GRP019", "维修三班", "维修班", "秦师傅", "13890123456", "三车间", "设备区", "3", "中级"},
+                {"GRP020", "维修四班", "维修班", "尤师傅", "13801234567", "四车间", "设备区", "3", "中级"},
+                {"GRP021", "质检一班", "质检班", "许师傅", "13812345678", "一车间", "质检区", "5", "高级"},
+                {"GRP022", "质检二班", "质检班", "何师傅", "13823456789", "二车间", "质检区", "4", "高级"},
+                {"GRP023", "质检三班", "质检班", "吕师傅", "13834567890", "三车间", "质检区", "4", "中级"},
+                {"GRP024", "质检四班", "质检班", "施师傅", "13845678901", "四车间", "质检区", "5", "中级"},
+                {"GRP025", "物流一班", "物流班", "张师傅", "13856789012", "全厂", "物流区", "6", "中级"},
+                {"GRP026", "物流二班", "物流班", "孔师傅", "13867890123", "仓库", "仓储区", "5", "中级"},
+                {"GRP027", "动力班", "辅助班", "曹师傅", "13878901234", "动力房", "动力区", "3", "高级"},
+                {"GRP028", "安全班", "辅助班", "严师傅", "13889012345", "全厂", "安全区", "4", "中级"},
+                {"GRP029", "保洁班", "辅助班", "华师傅", "13890123456", "全厂", "保洁区", "8", "初级"},
+                {"GRP030", "绿化班", "辅助班", "金师傅", "13801234567", "全厂", "绿化区", "3", "初级"},
+                {"GRP031", "厨房班", "辅助班", "魏师傅", "13812345678", "食堂", "厨房区", "6", "初级"},
+                {"GRP032", "保安一班", "辅助班", "陶师傅", "13823456789", "门卫", "安保区", "4", "初级"},
+                {"GRP033", "保安二班", "辅助班", "姜师傅", "13834567890", "门卫", "安保区", "4", "初级"},
+                {"GRP034", "研发一班", "技术班", "范师傅", "13845678901", "研发部", "研发区", "5", "专家级"},
+                {"GRP035", "研发二班", "技术班", "方师傅", "13856789012", "研发部", "研发区", "4", "专家级"}
+            };
+            
+            int[] statuses = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+                              1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                              1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                              1, 1, 1, 1, 1};
+            
+            for (int i = 0; i < 35; i++) {
+                String[] grp = groups[i];
+                jdbcTemplate.update(
+                    "INSERT IGNORE INTO `erp_work_group` (`group_code`, `group_name`, `group_type`, `supervisor`, `supervisor_phone`, `workshop`, `workcenter`, `member_count`, `skill_level`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    grp[0], grp[1], grp[2], grp[3], grp[4], grp[5], grp[6], 
+                    Integer.parseInt(grp[7]), grp[8], grp[1] + "，负责" + grp[5] + grp[6] + "的生产任务", statuses[i]
+                );
+            }
+            
+            log.info("示例班组数据插入成功（35条）");
+            
+        } catch (Exception e) {
+            log.error("插入示例班组数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建人员排班表
+     */
+    private void checkAndCreateEmployeeScheduleTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_employee_schedule'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("人员排班表 erp_employee_schedule 已存在");
+                Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_employee_schedule", Long.class);
+                if (dataCount != null && dataCount < 30) {
+                    log.info("人员排班表数据不足（{}条），补充示例数据...", dataCount);
+                    insertSampleEmployeeScheduleData();
+                } else if (dataCount != null && dataCount == 0) {
+                    log.info("人员排班表为空，插入示例数据...");
+                    insertSampleEmployeeScheduleData();
+                }
+                return;
+            }
+
+            log.info("人员排班表 erp_employee_schedule 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_employee_schedule` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `schedule_no` VARCHAR(50) NOT NULL COMMENT '排班编号',
+                    `group_id` BIGINT DEFAULT NULL COMMENT '班组ID',
+                    `group_code` VARCHAR(50) DEFAULT NULL COMMENT '班组编码',
+                    `group_name` VARCHAR(100) DEFAULT NULL COMMENT '班组名称',
+                    `schedule_date` DATE DEFAULT NULL COMMENT '排班日期',
+                    `shift_type` TINYINT DEFAULT 1 COMMENT '班次类型：1白班 2夜班 3中班',
+                    `start_time` TIME DEFAULT NULL COMMENT '开始时间',
+                    `end_time` TIME DEFAULT NULL COMMENT '结束时间',
+                    `work_hours` DECIMAL(5,1) DEFAULT 8.0 COMMENT '工时',
+                    `employee_names` VARCHAR(500) DEFAULT NULL COMMENT '排班人员',
+                    `responsible_person` VARCHAR(50) DEFAULT NULL COMMENT '负责人',
+                    `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1待确认 2已确认 3已执行 4已取消',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_schedule_no` (`schedule_no`),
+                    KEY `idx_group_id` (`group_id`),
+                    KEY `idx_schedule_date` (`schedule_date`),
+                    KEY `idx_shift_type` (`shift_type`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='人员排班表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("人员排班表创建成功");
+            
+            insertSampleEmployeeScheduleData();
+            
+        } catch (Exception e) {
+            log.error("创建人员排班表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例人员排班数据
+     */
+    private void insertSampleEmployeeScheduleData() {
+        try {
+            // 先查询班组数据
+            List<Map<String, Object>> groups = jdbcTemplate.queryForList(
+                "SELECT id, group_code, group_name, supervisor FROM erp_work_group LIMIT 20"
+            );
+            
+            if (!groups.isEmpty()) {
+                String[] shiftTypes = {"1", "2", "3"};
+                String[] startTimes = {"08:00:00", "20:00:00", "14:00:00"};
+                String[] endTimes = {"17:00:00", "06:00:00", "23:00:00"};
+                double[] workHours = {8.0, 10.0, 9.0};
+                
+                int[] statuses = {2, 2, 3, 3, 2, 2, 3, 3, 2, 2,
+                                  3, 3, 2, 2, 3, 3, 2, 2, 3, 3,
+                                  2, 2, 3, 3, 2, 2, 3, 3, 2, 2};
+                
+                // 生成近15天的排班
+                java.time.LocalDate baseDate = java.time.LocalDate.now();
+                int scheduleCount = 0;
+                
+                for (int i = 0; i < 15; i++) {
+                    java.time.LocalDate scheduleDate = baseDate.plusDays(i);
+                    for (int j = 0; j < Math.min(groups.size(), 2); j++) {
+                        Map<String, Object> group = groups.get(j);
+                        Long groupId = ((Number) group.get("id")).longValue();
+                        String groupCode = (String) group.get("group_code");
+                        String groupName = (String) group.get("group_name");
+                        String supervisor = (String) group.get("supervisor");
+                        
+                        for (int k = 0; k < 3; k++) {
+                            String scheduleNo = String.format("SCH%s%03d", scheduleDate.toString().replace("-", ""), scheduleCount + 1);
+                            
+                            String employees = supervisor + ", 员工" + (j + 1) + "-1, 员工" + (j + 1) + "-2, 员工" + (j + 1) + "-3";
+                            
+                            jdbcTemplate.update(
+                                "INSERT IGNORE INTO `erp_employee_schedule` (`schedule_no`, `group_id`, `group_code`, `group_name`, `schedule_date`, `shift_type`, `start_time`, `end_time`, `work_hours`, `employee_names`, `responsible_person`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                scheduleNo, groupId, groupCode, groupName, scheduleDate.toString(), 
+                                Integer.parseInt(shiftTypes[k]), startTimes[k], endTimes[k], 
+                                workHours[k], employees, supervisor, 
+                                groupName + "的" + (k == 0 ? "白班" : k == 1 ? "夜班" : "中班") + "排班", 
+                                statuses[scheduleCount % statuses.length]
+                            );
+                            
+                            scheduleCount++;
+                            if (scheduleCount >= 35) break;
+                        }
+                        if (scheduleCount >= 35) break;
+                    }
+                    if (scheduleCount >= 35) break;
+                }
+                
+                log.info("示例人员排班数据插入成功（共{}条）", scheduleCount);
+            }
+            
+        } catch (Exception e) {
+            log.error("插入示例人员排班数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建主生产计划表
+     */
+    private void checkAndCreateMpsTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_mps'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("主生产计划表 erp_mps 已存在");
+                Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_mps", Long.class);
+                if (dataCount != null && dataCount < 30) {
+                    log.info("主生产计划表数据不足（{}条），补充示例数据...", dataCount);
+                    insertSampleMpsData();
+                } else if (dataCount != null && dataCount == 0) {
+                    log.info("主生产计划表为空，插入示例数据...");
+                    insertSampleMpsData();
+                }
+                return;
+            }
+
+            log.info("主生产计划表 erp_mps 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_mps` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `mps_no` VARCHAR(50) NOT NULL COMMENT 'MPS编号',
+                    `plan_name` VARCHAR(100) DEFAULT NULL COMMENT '计划名称',
+                    `plan_type` TINYINT DEFAULT 1 COMMENT '计划类型：1月度 2季度 3年度',
+                    `product_id` BIGINT DEFAULT NULL COMMENT '产品ID',
+                    `product_code` VARCHAR(50) DEFAULT NULL COMMENT '产品编码',
+                    `product_name` VARCHAR(100) DEFAULT NULL COMMENT '产品名称',
+                    `specification` VARCHAR(200) DEFAULT NULL COMMENT '规格型号',
+                    `unit` VARCHAR(20) DEFAULT NULL COMMENT '计量单位',
+                    `net_requirement` DECIMAL(12,2) DEFAULT 0.00 COMMENT '净需求',
+                    `planned_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '计划数量',
+                    `plan_start_date` DATE DEFAULT NULL COMMENT '计划开始日期',
+                    `plan_end_date` DATE DEFAULT NULL COMMENT '计划结束日期',
+                    `actual_start_date` DATE DEFAULT NULL COMMENT '实际开始日期',
+                    `actual_end_date` DATE DEFAULT NULL COMMENT '实际结束日期',
+                    `equipment_id` BIGINT DEFAULT NULL COMMENT '设备ID',
+                    `equipment_code` VARCHAR(50) DEFAULT NULL COMMENT '设备编码',
+                    `equipment_name` VARCHAR(100) DEFAULT NULL COMMENT '设备名称',
+                    `group_id` BIGINT DEFAULT NULL COMMENT '班组ID',
+                    `group_code` VARCHAR(50) DEFAULT NULL COMMENT '班组编码',
+                    `group_name` VARCHAR(100) DEFAULT NULL COMMENT '班组名称',
+                    `priority` TINYINT DEFAULT 3 COMMENT '优先级：1-5（1最高）',
+                    `capacity_required` DECIMAL(12,2) DEFAULT 0.00 COMMENT '所需产能',
+                    `capacity_available` DECIMAL(12,2) DEFAULT 0.00 COMMENT '可用产能',
+                    `capacity_utilization` DECIMAL(5,2) DEFAULT 0.00 COMMENT '产能利用率',
+                    `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1计划 2执行 3完成 4取消',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_mps_no` (`mps_no`),
+                    KEY `idx_product_id` (`product_id`),
+                    KEY `idx_plan_start_date` (`plan_start_date`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='主生产计划表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("主生产计划表创建成功");
+            
+            insertSampleMpsData();
+            
+        } catch (Exception e) {
+            log.error("创建主生产计划表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例MPS数据
+     */
+    private void insertSampleMpsData() {
+        try {
+            // 先查询产品、设备和班组数据
+            List<Map<String, Object>> products = jdbcTemplate.queryForList(
+                "SELECT id, product_code, product_name, specification FROM erp_product LIMIT 10"
+            );
+            List<Map<String, Object>> equipments = jdbcTemplate.queryForList(
+                "SELECT id, equipment_code, equipment_name, capacity_per_hour FROM erp_equipment WHERE status = 1 LIMIT 10"
+            );
+            List<Map<String, Object>> groups = jdbcTemplate.queryForList(
+                "SELECT id, group_code, group_name FROM erp_work_group WHERE status = 1 LIMIT 10"
+            );
+            
+            if (!products.isEmpty() && !equipments.isEmpty() && !groups.isEmpty()) {
+                java.time.LocalDate baseDate = java.time.LocalDate.now();
+                int mpsCount = 0;
+                
+                for (int i = 0; i < 35; i++) {
+                    Map<String, Object> product = products.get(i % products.size());
+                    Map<String, Object> equipment = equipments.get(i % equipments.size());
+                    Map<String, Object> group = groups.get(i % groups.size());
+                    
+                    Long productId = ((Number) product.get("id")).longValue();
+                    String productCode = (String) product.get("product_code");
+                    String productName = (String) product.get("product_name");
+                    String specification = (String) product.get("specification");
+                    
+                    Long equipmentId = ((Number) equipment.get("id")).longValue();
+                    String equipmentCode = (String) equipment.get("equipment_code");
+                    String equipmentName = (String) equipment.get("equipment_name");
+                    double capacityPerHour = ((java.math.BigDecimal) equipment.get("capacity_per_hour")).doubleValue();
+                    
+                    Long groupId = ((Number) group.get("id")).longValue();
+                    String groupCode = (String) group.get("group_code");
+                    String groupName = (String) group.get("group_name");
+                    
+                    String mpsNo = String.format("MPS2026%05d", i + 1);
+                    String planName = productName + "生产计划";
+                    int planType = (i % 3) + 1;
+                    
+                    java.math.BigDecimal netRequirement = new java.math.BigDecimal(100 + (i * 50));
+                    java.math.BigDecimal plannedQuantity = netRequirement;
+                    
+                    java.time.LocalDate planStartDate = baseDate.plusDays(i * 2);
+                    java.time.LocalDate planEndDate = planStartDate.plusDays(7 + (i % 3));
+                    
+                    int priority = 3 + (i % 3) - 1;
+                    if (priority < 1) priority = 1;
+                    if (priority > 5) priority = 5;
+                    
+                    double capacityRequired = netRequirement.doubleValue() / 8.0; // 假设8小时工作制
+                    double capacityAvailable = capacityPerHour * 8 * 5; // 5天工作
+                    double capacityUtilization = Math.min(100.0, (capacityRequired / capacityAvailable) * 100);
+                    
+                    int status = (i % 4) + 1;
+                    if (status > 4) status = 4;
+                    
+                    jdbcTemplate.update(
+                        "INSERT IGNORE INTO `erp_mps` (`mps_no`, `plan_name`, `plan_type`, `product_id`, `product_code`, `product_name`, `specification`, `unit`, `net_requirement`, `planned_quantity`, `plan_start_date`, `plan_end_date`, `equipment_id`, `equipment_code`, `equipment_name`, `group_id`, `group_code`, `group_name`, `priority`, `capacity_required`, `capacity_available`, `capacity_utilization`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        mpsNo, planName, planType, productId, productCode, productName, specification, "台", 
+                        netRequirement, plannedQuantity, planStartDate.toString(), planEndDate.toString(), 
+                        equipmentId, equipmentCode, equipmentName, groupId, groupCode, groupName, 
+                        priority, new java.math.BigDecimal(capacityRequired), 
+                        new java.math.BigDecimal(capacityAvailable), 
+                        new java.math.BigDecimal(capacityUtilization), 
+                        planName + " - " + groupName + "使用" + equipmentName + "生产", 
+                        status
+                    );
+                    
+                    mpsCount++;
+                }
+                
+                log.info("示例MPS数据插入成功（共{}条）", mpsCount);
+            }
+            
+        } catch (Exception e) {
+            log.error("插入示例MPS数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建齐套预警表
+     */
+    private void checkAndCreateKittingAlertTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_kitting_alert'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("齐套预警表 erp_kitting_alert 已存在");
+                Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_kitting_alert", Long.class);
+                if (dataCount != null && dataCount < 30) {
+                    log.info("齐套预警表数据不足（{}条），补充示例数据...", dataCount);
+                    insertSampleKittingAlertData();
+                } else if (dataCount != null && dataCount == 0) {
+                    log.info("齐套预警表为空，插入示例数据...");
+                    insertSampleKittingAlertData();
+                }
+                return;
+            }
+
+            log.info("齐套预警表 erp_kitting_alert 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_kitting_alert` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `alert_no` VARCHAR(50) NOT NULL COMMENT '预警编号',
+                    `mps_id` BIGINT DEFAULT NULL COMMENT 'MPS ID',
+                    `mps_no` VARCHAR(50) DEFAULT NULL COMMENT 'MPS编号',
+                    `product_id` BIGINT DEFAULT NULL COMMENT '产品ID',
+                    `product_code` VARCHAR(50) DEFAULT NULL COMMENT '产品编码',
+                    `product_name` VARCHAR(100) DEFAULT NULL COMMENT '产品名称',
+                    `material_id` BIGINT DEFAULT NULL COMMENT '物料ID',
+                    `material_code` VARCHAR(50) DEFAULT NULL COMMENT '物料编码',
+                    `material_name` VARCHAR(100) DEFAULT NULL COMMENT '物料名称',
+                    `specification` VARCHAR(200) DEFAULT NULL COMMENT '规格型号',
+                    `unit` VARCHAR(20) DEFAULT NULL COMMENT '计量单位',
+                    `required_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '需求数量',
+                    `stock_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '库存数量',
+                    `allocated_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '已分配数量',
+                    `shortage_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '短缺数量',
+                    `kitting_rate` DECIMAL(5,2) DEFAULT 0.00 COMMENT '齐套率',
+                    `alert_level` TINYINT DEFAULT 3 COMMENT '预警等级：1紧急 2高 3中 4低',
+                    `required_date` DATE DEFAULT NULL COMMENT '需求日期',
+                    `expected_arrival_date` DATE DEFAULT NULL COMMENT '预计到货日期',
+                    `supplier_code` VARCHAR(50) DEFAULT NULL COMMENT '供应商编码',
+                    `supplier_name` VARCHAR(100) DEFAULT NULL COMMENT '供应商名称',
+                    `purchase_order_no` VARCHAR(50) DEFAULT NULL COMMENT '采购订单号',
+                    `synced_to_scrm` TINYINT DEFAULT 0 COMMENT '是否同步到SCM：0未同步 1已同步',
+                    `synced_time` DATETIME DEFAULT NULL COMMENT '同步时间',
+                    `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1待处理 2处理中 3已解决 4已忽略',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_alert_no` (`alert_no`),
+                    KEY `idx_mps_id` (`mps_id`),
+                    KEY `idx_product_id` (`product_id`),
+                    KEY `idx_material_id` (`material_id`),
+                    KEY `idx_alert_level` (`alert_level`),
+                    KEY `idx_status` (`status`, `is_deleted`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='齐套预警表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("齐套预警表创建成功");
+            
+            insertSampleKittingAlertData();
+            
+        } catch (Exception e) {
+            log.error("创建齐套预警表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例齐套预警数据
+     */
+    private void insertSampleKittingAlertData() {
+        try {
+            // 先查询MPS、产品和物料数据
+            List<Map<String, Object>> mpsList = jdbcTemplate.queryForList(
+                "SELECT id, mps_no, product_id, product_code, product_name FROM erp_mps LIMIT 15"
+            );
+            List<Map<String, Object>> materials = jdbcTemplate.queryForList(
+                "SELECT id, material_code, material_name, specification FROM erp_material LIMIT 10"
+            );
+            
+            if (!mpsList.isEmpty() && !materials.isEmpty()) {
+                String[][] suppliers = {
+                    {"SUP001", "上海供应商"}, {"SUP002", "北京供应商"}, {"SUP003", "广州供应商"},
+                    {"SUP004", "深圳供应商"}, {"SUP005", "杭州供应商"}
+                };
+                
+                int alertCount = 0;
+                
+                for (Map<String, Object> mps : mpsList) {
+                    Long mpsId = ((Number) mps.get("id")).longValue();
+                    String mpsNo = (String) mps.get("mps_no");
+                    Long productId = ((Number) mps.get("product_id")).longValue();
+                    String productCode = (String) mps.get("product_code");
+                    String productName = (String) mps.get("product_name");
+                    
+                    // 为每个MPS生成3-4个物料预警
+                    for (int i = 0; i < 3; i++) {
+                        Map<String, Object> material = materials.get((alertCount + i) % materials.size());
+                        Long materialId = ((Number) material.get("id")).longValue();
+                        String materialCode = (String) material.get("material_code");
+                        String materialName = (String) material.get("material_name");
+                        String specification = (String) material.get("specification");
+                        
+                        String alertNo = String.format("ALT2026%05d", alertCount + 1);
+                        
+                        java.math.BigDecimal requiredQuantity = new java.math.BigDecimal(100 + (alertCount * 20));
+                        java.math.BigDecimal stockQuantity = new java.math.BigDecimal(50 + (alertCount * 10));
+                        java.math.BigDecimal allocatedQuantity = new java.math.BigDecimal(20 + (alertCount * 5));
+                        java.math.BigDecimal availableStock = stockQuantity.subtract(allocatedQuantity);
+                        java.math.BigDecimal shortageQuantity = requiredQuantity.subtract(availableStock);
+                        if (shortageQuantity.compareTo(java.math.BigDecimal.ZERO) < 0) {
+                            shortageQuantity = java.math.BigDecimal.ZERO;
+                        }
+                        
+                        double kittingRate = availableStock.divide(requiredQuantity, 4, java.math.RoundingMode.HALF_UP).doubleValue() * 100;
+                        if (kittingRate > 100) kittingRate = 100;
+                        
+                        int alertLevel = 4;
+                        if (kittingRate < 30) alertLevel = 1;
+                        else if (kittingRate < 60) alertLevel = 2;
+                        else if (kittingRate < 80) alertLevel = 3;
+                        
+                        java.time.LocalDate requiredDate = java.time.LocalDate.now().plusDays(7 + (alertCount % 10));
+                        java.time.LocalDate expectedArrivalDate = requiredDate.minusDays(2 + (alertCount % 5));
+                        
+                        String[] supplier = suppliers[alertCount % suppliers.length];
+                        String purchaseOrderNo = String.format("PO2026%05d", alertCount + 1);
+                        
+                        int syncedToScrm = (alertCount % 2);
+                        java.time.LocalDateTime syncedTime = null;
+                        if (syncedToScrm == 1) {
+                            syncedTime = java.time.LocalDateTime.now().minusDays(alertCount % 3);
+                        }
+                        
+                        int status = (alertCount % 4) + 1;
+                        if (status > 4) status = 4;
+                        
+                        jdbcTemplate.update(
+                            "INSERT IGNORE INTO `erp_kitting_alert` (`alert_no`, `mps_id`, `mps_no`, `product_id`, `product_code`, `product_name`, `material_id`, `material_code`, `material_name`, `specification`, `unit`, `required_quantity`, `stock_quantity`, `allocated_quantity`, `shortage_quantity`, `kitting_rate`, `alert_level`, `required_date`, `expected_arrival_date`, `supplier_code`, `supplier_name`, `purchase_order_no`, `synced_to_scrm`, `synced_time`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            alertNo, mpsId, mpsNo, productId, productCode, productName, materialId, materialCode, materialName, specification, "个", 
+                            requiredQuantity, stockQuantity, allocatedQuantity, shortageQuantity, 
+                            new java.math.BigDecimal(kittingRate), alertLevel, requiredDate.toString(), expectedArrivalDate.toString(), 
+                            supplier[0], supplier[1], purchaseOrderNo, syncedToScrm, syncedTime, 
+                            productName + "生产所需" + materialName + "短缺", status
+                        );
+                        
+                        alertCount++;
+                        if (alertCount >= 35) break;
+                    }
+                    if (alertCount >= 35) break;
+                }
+                
+                log.info("示例齐套预警数据插入成功（共{}条）", alertCount);
+            }
+            
+        } catch (Exception e) {
+            log.error("插入示例齐套预警数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并插入产能平衡和齐套预警的菜单数据
+     */
+    private void checkAndInsertCapacityAndKittingMenuData() {
+        try {
+            // 查找生产计划与排程管理菜单
+            List<Map<String, Object>> prodPlanMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = '生产计划与排程管理' AND parent_id = 0 LIMIT 1"
+            );
+            
+            Long prodPlanMenuId = 0L;
+            if (prodPlanMenus.isEmpty()) {
+                // 插入生产计划与排程管理顶级菜单
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    0, "生产计划与排程管理", 1, null, "/erp/production", "Layout", "Calendar", 80, 1, 1, 1
+                );
+                prodPlanMenuId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                log.info("插入生产计划与排程管理菜单，ID: {}", prodPlanMenuId);
+            } else {
+                prodPlanMenuId = ((Number) prodPlanMenus.get(0).get("id")).longValue();
+                log.info("生产计划与排程管理菜单已存在，ID: {}", prodPlanMenuId);
+            }
+            
+            // 插入产能平衡菜单
+            List<Map<String, Object>> capacityMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = '产能平衡' AND parent_id = ? LIMIT 1",
+                prodPlanMenuId
+            );
+            
+            Long capacityMenuId = 0L;
+            if (capacityMenus.isEmpty()) {
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    prodPlanMenuId, "产能平衡", 1, null, "capacity", "Layout", "TrendCharts", 2, 1, 1, 1
+                );
+                capacityMenuId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                log.info("插入产能平衡菜单，ID: {}", capacityMenuId);
+            } else {
+                capacityMenuId = ((Number) capacityMenus.get(0).get("id")).longValue();
+                log.info("产能平衡菜单已存在，ID: {}", capacityMenuId);
+            }
+            
+            // 插入设备管理菜单
+            checkAndInsertSubMenu(capacityMenuId, "设备管理", "erp:equipment:list", "equipments", "erp/Equipment", "Monitor");
+            
+            // 插入班组管理菜单
+            checkAndInsertSubMenu(capacityMenuId, "班组管理", "erp:work-group:list", "work-groups", "erp/WorkGroup", "UserFilled");
+            
+            // 插入人员排班菜单
+            checkAndInsertSubMenu(capacityMenuId, "人员排班", "erp:employee-schedule:list", "employee-schedules", "erp/EmployeeSchedule", "Timer");
+            
+            // 插入主生产计划菜单
+            checkAndInsertSubMenu(capacityMenuId, "主生产计划(MPS)", "erp:mps:list", "mps", "erp/Mps", "Notebook");
+            
+            // 插入齐套预警菜单
+            List<Map<String, Object>> kittingMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = '齐套预警' AND parent_id = ? LIMIT 1",
+                prodPlanMenuId
+            );
+            
+            Long kittingMenuId = 0L;
+            if (kittingMenus.isEmpty()) {
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    prodPlanMenuId, "齐套预警", 1, null, "kitting", "Layout", "Warning", 3, 1, 1, 1
+                );
+                kittingMenuId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                log.info("插入齐套预警菜单，ID: {}", kittingMenuId);
+            } else {
+                kittingMenuId = ((Number) kittingMenus.get(0).get("id")).longValue();
+                log.info("齐套预警菜单已存在，ID: {}", kittingMenuId);
+            }
+            
+            // 插入齐套预警子菜单
+            checkAndInsertSubMenu(kittingMenuId, "齐套预警", "erp:kitting-alert:list", "kitting-alerts", "erp/KittingAlert", "WarningFilled");
+            
+            // 给超级管理员分配新菜单权限
+            assignMenuPermissionsToAdmin();
+            
+        } catch (Exception e) {
+            log.error("插入产能平衡和齐套预警菜单失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并插入子菜单
+     */
+    private void checkAndInsertSubMenu(Long parentId, String menuName, String permissionKey, String path, String component, String icon) {
+        try {
+            List<Map<String, Object>> existingMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = ? AND parent_id = ? LIMIT 1",
+                menuName, parentId
+            );
+            
+            if (existingMenus.isEmpty()) {
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    parentId, menuName, 2, permissionKey, path, component, icon, 1, 1, 1, 1
+                );
+                Long menuId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                log.info("插入{}菜单，ID: {}", menuName, menuId);
+                
+                // 插入按钮权限
+                String[][] buttons = {
+                    {"新增", permissionKey.replace(":list", ":add"), "1"},
+                    {"编辑", permissionKey.replace(":list", ":edit"), "2"},
+                    {"删除", permissionKey.replace(":list", ":delete"), "3"}
+                };
+                
+                for (String[] button : buttons) {
+                    jdbcTemplate.update(
+                        "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `sort_order`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        menuId, button[0], 3, button[1], Integer.parseInt(button[2]), 1, 1
+                    );
+                }
+            } else {
+                Long menuId = ((Number) existingMenus.get(0).get("id")).longValue();
+                log.info("{}菜单已存在，ID: {}", menuName, menuId);
+            }
+        } catch (Exception e) {
+            log.error("插入{}菜单失败: {}", menuName, e.getMessage());
+        }
+    }
+
+    /**
+     * 给超级管理员分配新菜单权限
+     */
+    private void assignMenuPermissionsToAdmin() {
+        try {
+            // 查找所有新插入的菜单ID
+            List<Map<String, Object>> menuIds = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE path LIKE '/erp/production%' OR path LIKE '/erp/capacity%' OR path LIKE '/erp/kitting%' OR menu_name IN ('生产计划与排程管理', '产能平衡', '齐套预警', '设备管理', '班组管理', '人员排班', '主生产计划(MPS)', '齐套预警')"
+            );
+            
+            for (Map<String, Object> menu : menuIds) {
+                Long menuId = ((Number) menu.get("id")).longValue();
+                jdbcTemplate.update(
+                    "INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES (?, ?)",
+                    1, menuId
+                );
+            }
+            
+            log.info("已给超级管理员分配新菜单权限");
+        } catch (Exception e) {
+            log.error("分配菜单权限失败: {}", e.getMessage());
         }
     }
 }
