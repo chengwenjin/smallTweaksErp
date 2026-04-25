@@ -144,6 +144,18 @@ const routes: RouteRecordRaw[] = [
         name: 'GanttChartManagement',
         component: () => import('@/views/erp/GanttChart.vue'),
         meta: { title: '甘特图展示' }
+      },
+      {
+        path: 'erp/work-orders',
+        name: 'WorkOrderManagement',
+        component: () => import('@/views/erp/WorkOrder.vue'),
+        meta: { title: '工单管理' }
+      },
+      {
+        path: 'erp/work-order-dashboard',
+        name: 'WorkOrderDashboardManagement',
+        component: () => import('@/views/erp/WorkOrderDashboard.vue'),
+        meta: { title: '工单看板' }
       }
     ]
   }

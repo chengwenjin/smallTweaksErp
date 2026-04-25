@@ -83,16 +83,25 @@ public class ErpDataInitializer implements ApplicationRunner {
             // 17. 检查并创建齐套预警表
             checkAndCreateKittingAlertTable();
             
-            // 18. 检查并插入菜单数据
+            // 18. 检查并创建工单表
+            checkAndCreateWorkOrderTable();
+            
+            // 19. 检查并创建工单流程日志表
+            checkAndCreateWorkOrderLogTable();
+            
+            // 20. 检查并插入菜单数据
             checkAndInsertMenuData();
             
-            // 19. 检查并插入产能平衡和齐套预警菜单数据
+            // 21. 检查并插入产能平衡和齐套预警菜单数据
             checkAndInsertCapacityAndKittingMenuData();
             
-            // 20. 检查并插入可视化排程和甘特图菜单数据
+            // 22. 检查并插入可视化排程和甘特图菜单数据
             checkAndInsertGanttMenuData();
             
-            // 21. 检查并修复is_deleted字段（如果存在数据但is_deleted为NULL或1）
+            // 23. 检查并插入工单管理菜单数据
+            checkAndInsertWorkOrderMenuData();
+            
+            // 24. 检查并修复is_deleted字段（如果存在数据但is_deleted为NULL或1）
             fixIsDeletedField();
             
             log.info("========================================");
@@ -2807,8 +2816,369 @@ public class ErpDataInitializer implements ApplicationRunner {
                 }
             }
             
+            // 修复工单表
+            int workOrderFixed = jdbcTemplate.update(
+                "UPDATE erp_work_order SET is_deleted = 0 WHERE is_deleted IS NULL OR is_deleted != 0"
+            );
+            
+            // 修复工单日志表
+            int workOrderLogFixed = jdbcTemplate.update(
+                "UPDATE erp_work_order_log SET is_deleted = 0 WHERE is_deleted IS NULL OR is_deleted != 0"
+            );
+            
+            if (workOrderFixed > 0 || workOrderLogFixed > 0) {
+                log.info("========================================");
+                log.info("   工单相关表is_deleted字段修复完成！");
+                log.info("========================================");
+                log.info("  工单表：修复 {} 条", workOrderFixed);
+                log.info("  工单日志表：修复 {} 条", workOrderLogFixed);
+                log.info("========================================");
+            }
+            
         } catch (Exception e) {
             log.error("修复is_deleted字段失败: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 检查并创建工单表
+     */
+    private void checkAndCreateWorkOrderTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_work_order'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("工单表 erp_work_order 已存在");
+                Long dataCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM erp_work_order", Long.class);
+                if (dataCount != null && dataCount < 30) {
+                    log.info("工单表数据不足（{}条），补充示例数据...", dataCount);
+                    insertSampleWorkOrderData();
+                } else if (dataCount != null && dataCount == 0) {
+                    log.info("工单表为空，插入示例数据...");
+                    insertSampleWorkOrderData();
+                }
+                return;
+            }
+
+            log.info("工单表 erp_work_order 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_work_order` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `work_order_no` VARCHAR(50) NOT NULL COMMENT '工单编号',
+                    `work_order_name` VARCHAR(100) DEFAULT NULL COMMENT '工单名称',
+                    `work_order_type` VARCHAR(50) DEFAULT '正常工单' COMMENT '工单类型',
+                    `source_mps_id` BIGINT DEFAULT NULL COMMENT '来源MPS ID',
+                    `source_mps_no` VARCHAR(50) DEFAULT NULL COMMENT '来源MPS编号',
+                    `product_id` BIGINT DEFAULT NULL COMMENT '产品ID',
+                    `product_code` VARCHAR(50) DEFAULT NULL COMMENT '产品编码',
+                    `product_name` VARCHAR(100) DEFAULT NULL COMMENT '产品名称',
+                    `specification` VARCHAR(200) DEFAULT NULL COMMENT '规格型号',
+                    `unit` VARCHAR(20) DEFAULT NULL COMMENT '计量单位',
+                    `plan_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '计划数量',
+                    `actual_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '实际数量',
+                    `completed_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '已完成数量',
+                    `scrapped_quantity` DECIMAL(12,2) DEFAULT 0.00 COMMENT '报废数量',
+                    `plan_start_date` DATE DEFAULT NULL COMMENT '计划开始日期',
+                    `plan_end_date` DATE DEFAULT NULL COMMENT '计划结束日期',
+                    `actual_start_date` DATE DEFAULT NULL COMMENT '实际开始日期',
+                    `actual_end_date` DATE DEFAULT NULL COMMENT '实际结束日期',
+                    `equipment_id` BIGINT DEFAULT NULL COMMENT '设备ID',
+                    `equipment_code` VARCHAR(50) DEFAULT NULL COMMENT '设备编码',
+                    `equipment_name` VARCHAR(100) DEFAULT NULL COMMENT '设备名称',
+                    `group_id` BIGINT DEFAULT NULL COMMENT '班组ID',
+                    `group_code` VARCHAR(50) DEFAULT NULL COMMENT '班组编码',
+                    `group_name` VARCHAR(100) DEFAULT NULL COMMENT '班组名称',
+                    `priority` TINYINT DEFAULT 2 COMMENT '优先级：1高 2中 3低',
+                    `order_source` VARCHAR(100) DEFAULT NULL COMMENT '订单来源',
+                    `order_source_id` BIGINT DEFAULT NULL COMMENT '订单来源ID',
+                    `order_source_no` VARCHAR(50) DEFAULT NULL COMMENT '订单来源编号',
+                    `delivery_date` DATE DEFAULT NULL COMMENT '交期',
+                    `completion_rate` DECIMAL(5,2) DEFAULT 0.00 COMMENT '完成率(%)',
+                    `approval_user_id` BIGINT DEFAULT NULL COMMENT '审批人ID',
+                    `approval_user_name` VARCHAR(50) DEFAULT NULL COMMENT '审批人名称',
+                    `approval_time` DATETIME DEFAULT NULL COMMENT '审批时间',
+                    `approval_opinion` VARCHAR(500) DEFAULT NULL COMMENT '审批意见',
+                    `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1草稿 2待审批 3已审批 4已下发 5领料中 6生产中 7报工中 8待入库 9已完工 10已取消',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除：0未删除 1已删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_work_order_no` (`work_order_no`),
+                    KEY `idx_product_id` (`product_id`),
+                    KEY `idx_equipment_id` (`equipment_id`),
+                    KEY `idx_group_id` (`group_id`),
+                    KEY `idx_status` (`status`, `is_deleted`),
+                    KEY `idx_delivery_date` (`delivery_date`),
+                    KEY `idx_plan_start_date` (`plan_start_date`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工单主表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("工单表创建成功");
+            
+            insertSampleWorkOrderData();
+            
+        } catch (Exception e) {
+            log.error("创建工单表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建工单流程日志表
+     */
+    private void checkAndCreateWorkOrderLogTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_work_order_log'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("工单流程日志表 erp_work_order_log 已存在");
+                return;
+            }
+
+            log.info("工单流程日志表 erp_work_order_log 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_work_order_log` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `work_order_id` BIGINT NOT NULL COMMENT '工单ID',
+                    `work_order_no` VARCHAR(50) DEFAULT NULL COMMENT '工单编号',
+                    `from_status` TINYINT DEFAULT NULL COMMENT '原状态',
+                    `from_status_name` VARCHAR(50) DEFAULT NULL COMMENT '原状态名称',
+                    `to_status` TINYINT NOT NULL COMMENT '目标状态',
+                    `to_status_name` VARCHAR(50) NOT NULL COMMENT '目标状态名称',
+                    `operation_type` VARCHAR(50) DEFAULT NULL COMMENT '操作类型',
+                    `operation_name` VARCHAR(100) DEFAULT NULL COMMENT '操作名称',
+                    `operation_quantity` DECIMAL(12,2) DEFAULT NULL COMMENT '操作数量',
+                    `operator` VARCHAR(50) DEFAULT NULL COMMENT '操作人',
+                    `operator_name` VARCHAR(50) DEFAULT NULL COMMENT '操作人名称',
+                    `operation_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+                    `operation_remark` VARCHAR(500) DEFAULT NULL COMMENT '操作备注',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '扩展字段3',
+                    PRIMARY KEY (`id`),
+                    KEY `idx_work_order_id` (`work_order_id`),
+                    KEY `idx_operation_time` (`operation_time`),
+                    KEY `idx_operator` (`operator`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工单流程日志表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("工单流程日志表创建成功");
+            
+        } catch (Exception e) {
+            log.error("创建工单流程日志表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 插入示例工单数据（35条）
+     */
+    private void insertSampleWorkOrderData() {
+        try {
+            // 先查询产品、设备和班组数据
+            List<Map<String, Object>> products = jdbcTemplate.queryForList(
+                "SELECT id, product_code, product_name, specification FROM erp_product ORDER BY id LIMIT 15"
+            );
+            List<Map<String, Object>> equipments = jdbcTemplate.queryForList(
+                "SELECT id, equipment_code, equipment_name FROM erp_equipment WHERE status = 1 ORDER BY id LIMIT 10"
+            );
+            List<Map<String, Object>> groups = jdbcTemplate.queryForList(
+                "SELECT id, group_code, group_name FROM erp_work_group WHERE status = 1 ORDER BY id LIMIT 10"
+            );
+            
+            if (!products.isEmpty() && !equipments.isEmpty() && !groups.isEmpty()) {
+                String[] workOrderTypes = {"正常工单", "正常工单", "正常工单", "返工工单", "试制工单", "维修工单"};
+                int[] statuses = {1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10,
+                                     1, 2, 3, 4, 5, 6, 7, 8, 9,
+                                     1, 2, 3, 4, 5, 6, 7};
+                
+                java.time.LocalDate baseDate = java.time.LocalDate.now();
+                int workOrderCount = 0;
+                
+                for (int i = 0; i < 35; i++) {
+                    Map<String, Object> product = products.get(i % products.size());
+                    Map<String, Object> equipment = equipments.get(i % equipments.size());
+                    Map<String, Object> group = groups.get(i % groups.size());
+                    
+                    Long productId = ((Number) product.get("id")).longValue();
+                    String productCode = (String) product.get("product_code");
+                    String productName = (String) product.get("product_name");
+                    String specification = (String) product.get("specification");
+                    
+                    Long equipmentId = ((Number) equipment.get("id")).longValue();
+                    String equipmentCode = (String) equipment.get("equipment_code");
+                    String equipmentName = (String) equipment.get("equipment_name");
+                    
+                    Long groupId = ((Number) group.get("id")).longValue();
+                    String groupCode = (String) group.get("group_code");
+                    String groupName = (String) group.get("group_name");
+                    
+                    String workOrderNo = String.format("WO%s%04d", baseDate.plusDays(i).toString().replace("-", ""), i + 1);
+                    String workOrderName = productName + "生产工单-" + (i + 1);
+                    String workOrderType = workOrderTypes[i % workOrderTypes.length];
+                    
+                    int planQuantity = 50 + (i * 10);
+                    int completedQuantity = 0;
+                    double completionRate = 0.0;
+                    
+                    int status = statuses[i % statuses.length];
+                    
+                    // 根据状态设置完成数量
+                    if (status >= 6 && status <= 8) {
+                        completedQuantity = (int) (planQuantity * (0.3 + (i % 5) * 0.1));
+                        completionRate = (completedQuantity * 100.0) / planQuantity;
+                    } else if (status == 9) {
+                        completedQuantity = planQuantity;
+                        completionRate = 100.0;
+                    }
+                    
+                    java.time.LocalDate planStartDate = baseDate.plusDays(i * 2);
+                    java.time.LocalDate planEndDate = planStartDate.plusDays(5 + (i % 3));
+                    java.time.LocalDate deliveryDate = planEndDate.plusDays(3);
+                    
+                    int priority = 2 + (i % 3) - 1;
+                    if (priority < 1) priority = 1;
+                    if (priority > 3) priority = 3;
+                    
+                    String remark = workOrderName + "，由" + groupName + "使用" + equipmentName + "生产";
+                    
+                    jdbcTemplate.update(
+                        "INSERT IGNORE INTO `erp_work_order` (`work_order_no`, `work_order_name`, `work_order_type`, `product_id`, `product_code`, `product_name`, `specification`, `unit`, `plan_quantity`, `completed_quantity`, `scrapped_quantity`, `plan_start_date`, `plan_end_date`, `equipment_id`, `equipment_code`, `equipment_name`, `group_id`, `group_code`, `group_name`, `priority`, `delivery_date`, `completion_rate`, `remark`, `status`, `is_deleted`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
+                        workOrderNo, workOrderName, workOrderType, productId, productCode, productName, specification, "台",
+                        new java.math.BigDecimal(planQuantity), new java.math.BigDecimal(completedQuantity),
+                        new java.math.BigDecimal(0), planStartDate.toString(), planEndDate.toString(),
+                        equipmentId, equipmentCode, equipmentName, groupId, groupCode, groupName,
+                        priority, deliveryDate.toString(), new java.math.BigDecimal(completionRate),
+                        remark, status
+                    );
+                    
+                    workOrderCount++;
+                }
+                
+                log.info("示例工单数据插入成功（共{}条）", workOrderCount);
+            }
+            
+        } catch (Exception e) {
+            log.error("插入示例工单数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并插入工单管理菜单数据
+     */
+    private void checkAndInsertWorkOrderMenuData() {
+        try {
+            // 查找生产工单与执行管理顶级菜单
+            List<Map<String, Object>> workOrderExecMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = '生产工单与执行管理' AND parent_id = 0 LIMIT 1"
+            );
+            
+            Long workOrderExecMenuId = 0L;
+            if (workOrderExecMenus.isEmpty()) {
+                // 插入生产工单与执行管理顶级菜单
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    0, "生产工单与执行管理", 1, null, "/erp/work-order", "Layout", "List", 90, 1, 1, 1
+                );
+                workOrderExecMenuId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                log.info("插入生产工单与执行管理菜单，ID: {}", workOrderExecMenuId);
+            } else {
+                workOrderExecMenuId = ((Number) workOrderExecMenus.get(0).get("id")).longValue();
+                log.info("生产工单与执行管理菜单已存在，ID: {}", workOrderExecMenuId);
+            }
+            
+            // 插入工单全流程菜单
+            List<Map<String, Object>> processMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = '工单全流程' AND parent_id = ? LIMIT 1",
+                workOrderExecMenuId
+            );
+            
+            Long processMenuId = 0L;
+            if (processMenus.isEmpty()) {
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    workOrderExecMenuId, "工单全流程", 1, null, "process", "Layout", "SetUp", 1, 1, 1, 1
+                );
+                processMenuId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                log.info("插入工单全流程菜单，ID: {}", processMenuId);
+            } else {
+                processMenuId = ((Number) processMenus.get(0).get("id")).longValue();
+                log.info("工单全流程菜单已存在，ID: {}", processMenuId);
+            }
+            
+            // 插入工单管理子菜单
+            checkAndInsertSubMenu(processMenuId, "工单管理", "erp:work-order:list", "work-orders", "erp/WorkOrder", "Document");
+            
+            // 插入进度跟踪菜单
+            List<Map<String, Object>> trackingMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = '进度跟踪' AND parent_id = ? LIMIT 1",
+                workOrderExecMenuId
+            );
+            
+            Long trackingMenuId = 0L;
+            if (trackingMenus.isEmpty()) {
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    workOrderExecMenuId, "进度跟踪", 1, null, "tracking", "Layout", "TrendCharts", 2, 1, 1, 1
+                );
+                trackingMenuId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                log.info("插入进度跟踪菜单，ID: {}", trackingMenuId);
+            } else {
+                trackingMenuId = ((Number) trackingMenus.get(0).get("id")).longValue();
+                log.info("进度跟踪菜单已存在，ID: {}", trackingMenuId);
+            }
+            
+            // 插入工单看板子菜单
+            checkAndInsertSubMenu(trackingMenuId, "工单看板", "erp:work-order:dashboard", "work-order-dashboard", "erp/WorkOrderDashboard", "DataLine");
+            
+            // 给超级管理员分配新菜单权限
+            assignWorkOrderMenuPermissionsToAdmin();
+            
+        } catch (Exception e) {
+            log.error("插入工单管理菜单失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 给超级管理员分配工单管理菜单权限
+     */
+    private void assignWorkOrderMenuPermissionsToAdmin() {
+        try {
+            // 查找工单管理相关的菜单ID
+            List<Map<String, Object>> menuIds = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE path LIKE '/erp/work-order%' OR path LIKE '/erp/process%' OR path LIKE '/erp/tracking%' OR menu_name IN ('生产工单与执行管理', '工单全流程', '进度跟踪', '工单管理', '工单看板')"
+            );
+            
+            for (Map<String, Object> menu : menuIds) {
+                Long menuId = ((Number) menu.get("id")).longValue();
+                jdbcTemplate.update(
+                    "INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES (?, ?)",
+                    1, menuId
+                );
+            }
+            
+            log.info("已给超级管理员分配工单管理菜单权限");
+        } catch (Exception e) {
+            log.error("分配工单管理菜单权限失败: {}", e.getMessage());
         }
     }
 }

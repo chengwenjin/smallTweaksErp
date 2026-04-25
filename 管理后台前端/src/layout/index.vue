@@ -85,7 +85,6 @@
             <el-menu-item index="/erp/gantt-chart">甘特图展示</el-menu-item>
           </el-sub-menu>
         </el-sub-menu>
-      </el-menu>
     </el-aside>
 
     <el-container>
