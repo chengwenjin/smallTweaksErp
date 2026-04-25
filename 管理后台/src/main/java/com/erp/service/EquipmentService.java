@@ -30,12 +30,12 @@ public class EquipmentService {
         Page<ErpEquipment> page = new Page<>(queryDTO.getPageNum(), queryDTO.getPageSize());
         
         LambdaQueryWrapper<ErpEquipment> wrapper = new LambdaQueryWrapper<>();
-        wrapper.like(queryDTO.getEquipmentCode() != null, ErpEquipment::getEquipmentCode, queryDTO.getEquipmentCode())
-               .like(queryDTO.getEquipmentName() != null, ErpEquipment::getEquipmentName, queryDTO.getEquipmentName())
-               .eq(queryDTO.getEquipmentType() != null, ErpEquipment::getEquipmentType, queryDTO.getEquipmentType())
-               .eq(queryDTO.getBrand() != null, ErpEquipment::getBrand, queryDTO.getBrand())
-               .eq(queryDTO.getWorkshop() != null, ErpEquipment::getWorkshop, queryDTO.getWorkshop())
-               .eq(queryDTO.getWorkcenter() != null, ErpEquipment::getWorkcenter, queryDTO.getWorkcenter())
+        wrapper.like(queryDTO.getEquipmentCode() != null && !queryDTO.getEquipmentCode().isEmpty(), ErpEquipment::getEquipmentCode, queryDTO.getEquipmentCode())
+               .like(queryDTO.getEquipmentName() != null && !queryDTO.getEquipmentName().isEmpty(), ErpEquipment::getEquipmentName, queryDTO.getEquipmentName())
+               .eq(queryDTO.getEquipmentType() != null && !queryDTO.getEquipmentType().isEmpty(), ErpEquipment::getEquipmentType, queryDTO.getEquipmentType())
+               .eq(queryDTO.getBrand() != null && !queryDTO.getBrand().isEmpty(), ErpEquipment::getBrand, queryDTO.getBrand())
+               .eq(queryDTO.getWorkshop() != null && !queryDTO.getWorkshop().isEmpty(), ErpEquipment::getWorkshop, queryDTO.getWorkshop())
+               .eq(queryDTO.getWorkcenter() != null && !queryDTO.getWorkcenter().isEmpty(), ErpEquipment::getWorkcenter, queryDTO.getWorkcenter())
                .eq(queryDTO.getStatus() != null, ErpEquipment::getStatus, queryDTO.getStatus())
                .orderByDesc(ErpEquipment::getCreateTime);
         

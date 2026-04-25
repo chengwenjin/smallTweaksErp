@@ -1893,14 +1893,14 @@ public class ErpDataInitializer implements ApplicationRunner {
             };
             
             int[] statuses = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
-                              1, 1, 4, 1, 1, 1, 1, 1, 1, 1,
+                              1, 1, 2, 1, 1, 1, 1, 1, 1, 1,
                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                              1, 1, 4, 1, 1};
+                              1, 1, 2, 1, 1};
             
             for (int i = 0; i < 35; i++) {
                 String[] eq = equipments[i];
                 jdbcTemplate.update(
-                    "INSERT IGNORE INTO `erp_equipment` (`equipment_code`, `equipment_name`, `equipment_type`, `specification`, `brand`, `model`, `capacity_per_hour`, `capacity_unit`, `purchase_date`, `warranty_expiry_date`, `workshop`, `workcenter`, `maintenance_date`, `maintenance_interval_days`, `responsible_person`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT IGNORE INTO `erp_equipment` (`equipment_code`, `equipment_name`, `equipment_type`, `specification`, `brand`, `model`, `capacity_per_hour`, `capacity_unit`, `purchase_date`, `warranty_expiry_date`, `workshop`, `workcenter`, `maintenance_date`, `maintenance_interval_days`, `responsible_person`, `remark`, `status`, `is_deleted`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
                     eq[0], eq[1], eq[2], eq[3], eq[4], eq[5], 
                     new java.math.BigDecimal(eq[6]), eq[7], eq[8], eq[9], eq[10], eq[11], eq[12], 
                     Integer.parseInt(eq[13]), eq[14], eq[15], statuses[i]
@@ -2031,7 +2031,7 @@ public class ErpDataInitializer implements ApplicationRunner {
             for (int i = 0; i < 35; i++) {
                 String[] grp = groups[i];
                 jdbcTemplate.update(
-                    "INSERT IGNORE INTO `erp_work_group` (`group_code`, `group_name`, `group_type`, `supervisor`, `supervisor_phone`, `workshop`, `workcenter`, `member_count`, `skill_level`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT IGNORE INTO `erp_work_group` (`group_code`, `group_name`, `group_type`, `supervisor`, `supervisor_phone`, `workshop`, `workcenter`, `member_count`, `skill_level`, `remark`, `status`, `is_deleted`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
                     grp[0], grp[1], grp[2], grp[3], grp[4], grp[5], grp[6], 
                     Integer.parseInt(grp[7]), grp[8], grp[1] + "，负责" + grp[5] + grp[6] + "的生产任务", statuses[i]
                 );
@@ -2717,7 +2717,43 @@ public class ErpDataInitializer implements ApplicationRunner {
      */
     private void fixIsDeletedField() {
         try {
-            log.info("检查并修复is_deleted字段...");
+            log.info("========================================");
+            log.info("   开始检查并修复is_deleted字段...");
+            log.info("========================================");
+            
+            // 检查设备表当前数据量
+            Long equipmentTotal = 0L;
+            Long equipmentNeedFix = 0L;
+            try {
+                equipmentTotal = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM erp_equipment",
+                    Long.class
+                );
+                equipmentNeedFix = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM erp_equipment WHERE is_deleted IS NULL OR is_deleted != 0",
+                    Long.class
+                );
+                log.info("设备表：总数据量={}条，需要修复={}条", equipmentTotal, equipmentNeedFix);
+            } catch (Exception e) {
+                log.warn("检查设备表数据量失败: {}", e.getMessage());
+            }
+            
+            // 检查班组表当前数据量
+            Long workGroupTotal = 0L;
+            Long workGroupNeedFix = 0L;
+            try {
+                workGroupTotal = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM erp_work_group",
+                    Long.class
+                );
+                workGroupNeedFix = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM erp_work_group WHERE is_deleted IS NULL OR is_deleted != 0",
+                    Long.class
+                );
+                log.info("班组表：总数据量={}条，需要修复={}条", workGroupTotal, workGroupNeedFix);
+            } catch (Exception e) {
+                log.warn("检查组表数据量失败: {}", e.getMessage());
+            }
             
             // 修复设备表
             int equipmentFixed = jdbcTemplate.update(
@@ -2745,14 +2781,34 @@ public class ErpDataInitializer implements ApplicationRunner {
             );
             
             if (equipmentFixed > 0 || workGroupFixed > 0 || employeeScheduleFixed > 0 || mpsFixed > 0 || kittingAlertFixed > 0) {
-                log.info("is_deleted字段修复完成：设备{}条，班组{}条，人员排班{}条，MPS{}条，齐套预警{}条",
-                    equipmentFixed, workGroupFixed, employeeScheduleFixed, mpsFixed, kittingAlertFixed);
+                log.info("========================================");
+                log.info("   is_deleted字段修复完成！");
+                log.info("========================================");
+                log.info("  设备表：修复 {} 条", equipmentFixed);
+                log.info("  班组表：修复 {} 条", workGroupFixed);
+                log.info("  人员排班表：修复 {} 条", employeeScheduleFixed);
+                log.info("  MPS表：修复 {} 条", mpsFixed);
+                log.info("  齐套预警表：修复 {} 条", kittingAlertFixed);
+                log.info("========================================");
             } else {
-                log.info("is_deleted字段检查完成，无需修复");
+                log.info("========================================");
+                log.info("   is_deleted字段检查完成");
+                log.info("========================================");
+                log.info("  设备表：总数据量={}条，is_deleted=0的={}条", equipmentTotal, equipmentTotal - equipmentNeedFix);
+                log.info("  班组表：总数据量={}条，is_deleted=0的={}条", workGroupTotal, workGroupTotal - workGroupNeedFix);
+                log.info("========================================");
+                
+                // 如果表中没有数据，输出警告
+                if (equipmentTotal == null || equipmentTotal == 0) {
+                    log.warn("⚠️ 设备表中没有数据！请先生成测试数据");
+                }
+                if (workGroupTotal == null || workGroupTotal == 0) {
+                    log.warn("⚠️ 班组表中没有数据！请先生成测试数据");
+                }
             }
             
         } catch (Exception e) {
-            log.error("修复is_deleted字段失败: {}", e.getMessage());
+            log.error("修复is_deleted字段失败: {}", e.getMessage(), e);
         }
     }
 }

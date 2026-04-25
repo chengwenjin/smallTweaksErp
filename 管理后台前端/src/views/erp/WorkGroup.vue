@@ -10,9 +10,12 @@
         </el-form-item>
         <el-form-item label="班组类型">
           <el-select v-model="searchForm.groupType" placeholder="请选择" clearable style="width: 120px">
-            <el-option label="生产班" value="1" />
-            <el-option label="维修班" value="2" />
-            <el-option label="质检班" value="3" />
+            <el-option label="生产班" value="生产班" />
+            <el-option label="维修班" value="维修班" />
+            <el-option label="质检班" value="质检班" />
+            <el-option label="物流班" value="物流班" />
+            <el-option label="辅助班" value="辅助班" />
+            <el-option label="技术班" value="技术班" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -148,9 +151,12 @@
           <el-col :span="12">
             <el-form-item label="班组类型">
               <el-select v-model="form.groupType" placeholder="请选择班组类型" style="width: 100%">
-                <el-option label="生产班" value="1" />
-                <el-option label="维修班" value="2" />
-                <el-option label="质检班" value="3" />
+                <el-option label="生产班" value="生产班" />
+                <el-option label="维修班" value="维修班" />
+                <el-option label="质检班" value="质检班" />
+                <el-option label="物流班" value="物流班" />
+                <el-option label="辅助班" value="辅助班" />
+                <el-option label="技术班" value="技术班" />
               </el-select>
             </el-form-item>
           </el-col>
