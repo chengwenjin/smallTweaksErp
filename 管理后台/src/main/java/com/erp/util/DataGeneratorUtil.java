@@ -67,7 +67,7 @@ public class DataGeneratorUtil {
 
     private static int generateWorkGroups(Connection conn) throws SQLException {
         int count = 0;
-        String sql = "INSERT IGNORE INTO `erp_work_group` (`group_code`, `group_name`, `group_type`, `supervisor`, `supervisor_phone`, `workshop`, `workcenter`, `member_count`, `skill_level`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT IGNORE INTO `erp_work_group` (`group_code`, `group_name`, `group_type`, `supervisor`, `supervisor_phone`, `workshop`, `workcenter`, `member_count`, `skill_level`, `remark`, `status`, `is_deleted`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
         
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             for (int typeIndex = 0; typeIndex < GROUP_TYPES.length; typeIndex++) {
@@ -112,7 +112,7 @@ public class DataGeneratorUtil {
     private static int generateEquipments(Connection conn) throws SQLException {
         int count = 0;
         LocalDate today = LocalDate.now();
-        String sql = "INSERT IGNORE INTO `erp_equipment` (`equipment_code`, `equipment_name`, `equipment_type`, `specification`, `brand`, `model`, `capacity_per_hour`, `capacity_unit`, `purchase_date`, `warranty_expiry_date`, `workshop`, `workcenter`, `maintenance_date`, `maintenance_interval_days`, `responsible_person`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT IGNORE INTO `erp_equipment` (`equipment_code`, `equipment_name`, `equipment_type`, `specification`, `brand`, `model`, `capacity_per_hour`, `capacity_unit`, `purchase_date`, `warranty_expiry_date`, `workshop`, `workcenter`, `maintenance_date`, `maintenance_interval_days`, `responsible_person`, `remark`, `status`, `is_deleted`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
         
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             for (int i = 1; i <= 50; i++) {
@@ -134,7 +134,17 @@ public class DataGeneratorUtil {
                 int maintenanceIntervalDays = 30 + (int)(Math.random() * 60);
                 String responsiblePerson = SURNAMES[(i - 1) % SURNAMES.length] + "工";
                 String remark = String.format("%s，品牌%s，型号%s，用于%s的生产加工", equipmentName, brand, model, workshop);
-                int status = (i % 10 == 0) ? 4 : 1;
+                
+                int status;
+                if (i % 10 == 0) {
+                    status = 2;
+                } else if (i % 7 == 0) {
+                    status = 3;
+                } else if (i % 13 == 0) {
+                    status = 0;
+                } else {
+                    status = 1;
+                }
                 
                 pstmt.setString(1, equipmentCode);
                 pstmt.setString(2, equipmentName);
