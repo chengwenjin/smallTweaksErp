@@ -8,8 +8,10 @@ import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * ERP模块数据初始化组件
@@ -89,6 +91,9 @@ public class ErpDataInitializer implements ApplicationRunner {
             
             // 20. 检查并插入可视化排程和甘特图菜单数据
             checkAndInsertGanttMenuData();
+            
+            // 21. 检查并修复is_deleted字段（如果存在数据但is_deleted为NULL或1）
+            fixIsDeletedField();
             
             log.info("========================================");
             log.info("   ERP模块数据初始化完成！");
@@ -895,17 +900,30 @@ public class ErpDataInitializer implements ApplicationRunner {
             // 先删除已有的BOM版本与替代料相关菜单（强制重新初始化）
             log.info("准备初始化BOM版本与替代料菜单...");
             
-            // 查找并删除已有的相关菜单
+            // 查找并删除已有的相关菜单（按菜单名称）
             List<Map<String, Object>> existingMenus = jdbcTemplate.queryForList(
                 "SELECT id, menu_name, parent_id FROM sys_menu WHERE menu_name IN ('BOM版本与替代料', 'BOM版本管理', '替代料管理')"
             );
             
-            if (!existingMenus.isEmpty()) {
-                log.info("发现已存在的BOM版本与替代料菜单，准备重新初始化...");
+            // 查找并删除已有的相关菜单（按permission_key）
+            List<Map<String, Object>> existingMenusByPermission = jdbcTemplate.queryForList(
+                "SELECT id, menu_name, parent_id FROM sys_menu WHERE permission_key IN ('erp:bom-version:list', 'erp:bom-version:add', 'erp:bom-version:edit', 'erp:bom-version:delete', 'erp:alternative-material:list', 'erp:alternative-material:add', 'erp:alternative-material:edit', 'erp:alternative-material:delete')"
+            );
+            
+            // 合并两个列表，去重
+            Set<Long> menuIdsToDelete = new HashSet<>();
+            for (Map<String, Object> menu : existingMenus) {
+                menuIdsToDelete.add(((Number) menu.get("id")).longValue());
+            }
+            for (Map<String, Object> menu : existingMenusByPermission) {
+                menuIdsToDelete.add(((Number) menu.get("id")).longValue());
+            }
+            
+            if (!menuIdsToDelete.isEmpty()) {
+                log.info("发现已存在的BOM版本与替代料相关菜单（共{}个），准备重新初始化...", menuIdsToDelete.size());
                 
-                // 先删除按钮权限
-                for (Map<String, Object> menu : existingMenus) {
-                    Long menuId = ((Number) menu.get("id")).longValue();
+                // 先删除按钮权限（子菜单）
+                for (Long menuId : menuIdsToDelete) {
                     jdbcTemplate.update(
                         "DELETE FROM sys_menu WHERE parent_id = ?",
                         menuId
@@ -918,8 +936,7 @@ public class ErpDataInitializer implements ApplicationRunner {
                 }
                 
                 // 删除菜单本身
-                for (Map<String, Object> menu : existingMenus) {
-                    Long menuId = ((Number) menu.get("id")).longValue();
+                for (Long menuId : menuIdsToDelete) {
                     jdbcTemplate.update(
                         "DELETE FROM sys_menu WHERE id = ?",
                         menuId
@@ -934,7 +951,7 @@ public class ErpDataInitializer implements ApplicationRunner {
             // 插入BOM版本与替代料菜单（父菜单）
             jdbcTemplate.update(
                 "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                productBomMenuId, "BOM版本与替代料", 1, "erp:bom-version:list", "bom-version", "", "DataLine", 2, 1, 1, 1
+                productBomMenuId, "BOM版本与替代料", 1, null, "bom-version", "", "DataLine", 2, 1, 1, 1
             );
 
             Long bomVersionMenuId = jdbcTemplate.queryForObject(
@@ -2690,6 +2707,52 @@ public class ErpDataInitializer implements ApplicationRunner {
             
         } catch (Exception e) {
             log.error("插入可视化排程和甘特图菜单失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 修复is_deleted字段
+     * 将所有is_deleted为NULL或1的记录更新为0
+     * 这是为了解决数据生成器未设置is_deleted字段导致的查询不到数据的问题
+     */
+    private void fixIsDeletedField() {
+        try {
+            log.info("检查并修复is_deleted字段...");
+            
+            // 修复设备表
+            int equipmentFixed = jdbcTemplate.update(
+                "UPDATE erp_equipment SET is_deleted = 0 WHERE is_deleted IS NULL OR is_deleted != 0"
+            );
+            
+            // 修复班组表
+            int workGroupFixed = jdbcTemplate.update(
+                "UPDATE erp_work_group SET is_deleted = 0 WHERE is_deleted IS NULL OR is_deleted != 0"
+            );
+            
+            // 修复人员排班表
+            int employeeScheduleFixed = jdbcTemplate.update(
+                "UPDATE erp_employee_schedule SET is_deleted = 0 WHERE is_deleted IS NULL OR is_deleted != 0"
+            );
+            
+            // 修复主生产计划表
+            int mpsFixed = jdbcTemplate.update(
+                "UPDATE erp_mps SET is_deleted = 0 WHERE is_deleted IS NULL OR is_deleted != 0"
+            );
+            
+            // 修复齐套预警表
+            int kittingAlertFixed = jdbcTemplate.update(
+                "UPDATE erp_kitting_alert SET is_deleted = 0 WHERE is_deleted IS NULL OR is_deleted != 0"
+            );
+            
+            if (equipmentFixed > 0 || workGroupFixed > 0 || employeeScheduleFixed > 0 || mpsFixed > 0 || kittingAlertFixed > 0) {
+                log.info("is_deleted字段修复完成：设备{}条，班组{}条，人员排班{}条，MPS{}条，齐套预警{}条",
+                    equipmentFixed, workGroupFixed, employeeScheduleFixed, mpsFixed, kittingAlertFixed);
+            } else {
+                log.info("is_deleted字段检查完成，无需修复");
+            }
+            
+        } catch (Exception e) {
+            log.error("修复is_deleted字段失败: {}", e.getMessage());
         }
     }
 }

@@ -165,6 +165,47 @@ public class DataGeneratorController {
         return R.success(result);
     }
 
+    @Operation(summary = "修复is_deleted字段（将NULL或1改为0）")
+    @GetMapping("/fix-is-deleted")
+    public R<Map<String, Object>> fixIsDeleted() {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            int workGroupFixed = jdbcTemplate.update(
+                "UPDATE erp_work_group SET is_deleted = 0 WHERE is_deleted IS NULL OR is_deleted != 0"
+            );
+            
+            int equipmentFixed = jdbcTemplate.update(
+                "UPDATE erp_equipment SET is_deleted = 0 WHERE is_deleted IS NULL OR is_deleted != 0"
+            );
+            
+            Map<String, Object> workGroupCount = jdbcTemplate.queryForMap(
+                "SELECT COUNT(*) as count FROM erp_work_group WHERE is_deleted = 0"
+            );
+            
+            Map<String, Object> equipmentCount = jdbcTemplate.queryForMap(
+                "SELECT COUNT(*) as count FROM erp_equipment WHERE is_deleted = 0"
+            );
+            
+            result.put("workGroupFixed", workGroupFixed);
+            result.put("equipmentFixed", equipmentFixed);
+            result.put("workGroupTotal", workGroupCount.get("count"));
+            result.put("equipmentTotal", equipmentCount.get("count"));
+            result.put("status", "success");
+            result.put("message", "is_deleted字段修复完成");
+            
+            log.info("is_deleted字段修复完成：班组修复{}条，设备修复{}条，当前班组总数{}，设备总数{}", 
+                workGroupFixed, equipmentFixed, workGroupCount.get("count"), equipmentCount.get("count"));
+            
+        } catch (Exception e) {
+            log.error("修复is_deleted字段失败: {}", e.getMessage(), e);
+            result.put("status", "error");
+            result.put("message", "修复失败: " + e.getMessage());
+        }
+        
+        return R.success(result);
+    }
+
     private int insertWorkGroupData() {
         int count = 0;
         
@@ -184,7 +225,7 @@ public class DataGeneratorController {
                 String remark = String.format("这是%s，负责%s的%s工作", groupName, workshop, workcenter);
                 
                 int inserted = jdbcTemplate.update(
-                    "INSERT IGNORE INTO `erp_work_group` (`group_code`, `group_name`, `group_type`, `supervisor`, `supervisor_phone`, `workshop`, `workcenter`, `member_count`, `skill_level`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT IGNORE INTO `erp_work_group` (`group_code`, `group_name`, `group_type`, `supervisor`, `supervisor_phone`, `workshop`, `workcenter`, `member_count`, `skill_level`, `remark`, `status`, `is_deleted`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
                     groupCode, groupName, groupType, supervisor, supervisorPhone, workshop, workcenter, memberCount, skillLevel, remark, 1
                 );
                 
@@ -221,10 +262,20 @@ public class DataGeneratorController {
             int maintenanceIntervalDays = 30 + (int)(Math.random() * 60);
             String responsiblePerson = SURNAMES[(i - 1) % SURNAMES.length] + "工";
             String remark = String.format("%s，品牌%s，型号%s，用于%s的生产加工", equipmentName, brand, model, workshop);
-            int status = (i % 10 == 0) ? 4 : 1;
+            
+            int status;
+            if (i % 10 == 0) {
+                status = 2;
+            } else if (i % 7 == 0) {
+                status = 3;
+            } else if (i % 13 == 0) {
+                status = 0;
+            } else {
+                status = 1;
+            }
             
             int inserted = jdbcTemplate.update(
-                "INSERT IGNORE INTO `erp_equipment` (`equipment_code`, `equipment_name`, `equipment_type`, `specification`, `brand`, `model`, `capacity_per_hour`, `capacity_unit`, `purchase_date`, `warranty_expiry_date`, `workshop`, `workcenter`, `maintenance_date`, `maintenance_interval_days`, `responsible_person`, `remark`, `status`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT IGNORE INTO `erp_equipment` (`equipment_code`, `equipment_name`, `equipment_type`, `specification`, `brand`, `model`, `capacity_per_hour`, `capacity_unit`, `purchase_date`, `warranty_expiry_date`, `workshop`, `workcenter`, `maintenance_date`, `maintenance_interval_days`, `responsible_person`, `remark`, `status`, `is_deleted`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
                 equipmentCode, equipmentName, equipmentType, specification, brand, model, capacityPerHour, capacityUnit, 
                 java.sql.Date.valueOf(purchaseDate), java.sql.Date.valueOf(warrantyExpiryDate), 
                 workshop, workcenter, java.sql.Date.valueOf(maintenanceDate), maintenanceIntervalDays, 
