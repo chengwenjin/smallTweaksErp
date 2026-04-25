@@ -30,11 +30,11 @@ public class WorkGroupService {
         Page<ErpWorkGroup> page = new Page<>(queryDTO.getPageNum(), queryDTO.getPageSize());
         
         LambdaQueryWrapper<ErpWorkGroup> wrapper = new LambdaQueryWrapper<>();
-        wrapper.like(queryDTO.getGroupCode() != null, ErpWorkGroup::getGroupCode, queryDTO.getGroupCode())
-               .like(queryDTO.getGroupName() != null, ErpWorkGroup::getGroupName, queryDTO.getGroupName())
-               .eq(queryDTO.getGroupType() != null, ErpWorkGroup::getGroupType, queryDTO.getGroupType())
-               .eq(queryDTO.getWorkshop() != null, ErpWorkGroup::getWorkshop, queryDTO.getWorkshop())
-               .eq(queryDTO.getWorkcenter() != null, ErpWorkGroup::getWorkcenter, queryDTO.getWorkcenter())
+        wrapper.like(queryDTO.getGroupCode() != null && !queryDTO.getGroupCode().isEmpty(), ErpWorkGroup::getGroupCode, queryDTO.getGroupCode())
+               .like(queryDTO.getGroupName() != null && !queryDTO.getGroupName().isEmpty(), ErpWorkGroup::getGroupName, queryDTO.getGroupName())
+               .eq(queryDTO.getGroupType() != null && !queryDTO.getGroupType().isEmpty(), ErpWorkGroup::getGroupType, queryDTO.getGroupType())
+               .eq(queryDTO.getWorkshop() != null && !queryDTO.getWorkshop().isEmpty(), ErpWorkGroup::getWorkshop, queryDTO.getWorkshop())
+               .eq(queryDTO.getWorkcenter() != null && !queryDTO.getWorkcenter().isEmpty(), ErpWorkGroup::getWorkcenter, queryDTO.getWorkcenter())
                .eq(queryDTO.getStatus() != null, ErpWorkGroup::getStatus, queryDTO.getStatus())
                .orderByDesc(ErpWorkGroup::getCreateTime);
         
@@ -148,19 +148,17 @@ public class WorkGroupService {
     }
 
     private WorkGroupVO convertToVO(ErpWorkGroup workGroup) {
-        String groupTypeName = switch (workGroup.getGroupType()) {
-            case "1" -> "生产班";
-            case "2" -> "维修班";
-            case "3" -> "质检班";
-            default -> "其他";
-        };
+        String groupTypeName = workGroup.getGroupType();
+        if (groupTypeName == null) {
+            groupTypeName = "其他";
+        }
         
         String skillLevelName = switch (workGroup.getSkillLevel()) {
             case "1" -> "初级";
             case "2" -> "中级";
             case "3" -> "高级";
             case "4" -> "专家级";
-            default -> "未知";
+            default -> workGroup.getSkillLevel() != null ? workGroup.getSkillLevel() : "未知";
         };
         
         String statusName = switch (workGroup.getStatus()) {
