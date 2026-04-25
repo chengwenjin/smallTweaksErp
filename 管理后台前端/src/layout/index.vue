@@ -85,6 +85,22 @@
             <el-menu-item index="/erp/gantt-chart">甘特图展示</el-menu-item>
           </el-sub-menu>
         </el-sub-menu>
+
+        <el-sub-menu index="/work-order">
+          <template #title>
+            <el-icon><List /></el-icon>
+            <span>生产工单与执行</span>
+          </template>
+          <el-sub-menu index="/work-order/process">
+            <template #title>工单全流程</template>
+            <el-menu-item index="/erp/work-orders">工单管理</el-menu-item>
+          </el-sub-menu>
+          <el-sub-menu index="/work-order/tracking">
+            <template #title>进度跟踪</template>
+            <el-menu-item index="/erp/work-order-dashboard">工单看板</el-menu-item>
+          </el-sub-menu>
+        </el-sub-menu>
+      </el-menu>
     </el-aside>
 
     <el-container>
