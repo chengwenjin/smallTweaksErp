@@ -101,8 +101,23 @@ public class ErpDataInitializer implements ApplicationRunner {
             // 23. 检查并插入工单管理菜单数据
             checkAndInsertWorkOrderMenuData();
             
+            // 20. 检查并创建工序报工记录表
+            checkAndCreateProcessReportTable();
+            
+            // 21. 检查并创建领料单表
+            checkAndCreateMaterialPickTable();
+            
+            // 22. 检查并创建退补料单表
+            checkAndCreateMaterialReturnTable();
+            
+            // 23. 检查并创建超领审批单表
+            checkAndCreateOverPickApprovalTable();
+            
             // 24. 检查并修复is_deleted字段（如果存在数据但is_deleted为NULL或1）
             fixIsDeletedField();
+            
+            // 25. 检查并插入现场执行与损耗管控菜单数据
+            checkAndInsertProductionExecutionMenuData();
             
             log.info("========================================");
             log.info("   ERP模块数据初始化完成！");
@@ -3179,6 +3194,422 @@ public class ErpDataInitializer implements ApplicationRunner {
             log.info("已给超级管理员分配工单管理菜单权限");
         } catch (Exception e) {
             log.error("分配工单管理菜单权限失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建工序报工记录表
+     */
+    private void checkAndCreateProcessReportTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_process_report'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("工序报工记录表 erp_process_report 已存在");
+                return;
+            }
+
+            log.info("工序报工记录表 erp_process_report 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_process_report` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `report_no` VARCHAR(50) NOT NULL COMMENT '报工单号',
+                    `work_order_id` BIGINT DEFAULT NULL COMMENT '工单ID',
+                    `work_order_no` VARCHAR(50) DEFAULT NULL COMMENT '工单号',
+                    `work_order_name` VARCHAR(100) DEFAULT NULL COMMENT '工单名称',
+                    `product_name` VARCHAR(100) DEFAULT NULL COMMENT '产品名称',
+                    `process_id` BIGINT DEFAULT NULL COMMENT '工序ID',
+                    `process_code` VARCHAR(50) DEFAULT NULL COMMENT '工序编码',
+                    `process_name` VARCHAR(100) DEFAULT NULL COMMENT '工序名称',
+                    `equipment_id` BIGINT DEFAULT NULL COMMENT '设备ID',
+                    `equipment_code` VARCHAR(50) DEFAULT NULL COMMENT '设备编码',
+                    `equipment_name` VARCHAR(100) DEFAULT NULL COMMENT '设备名称',
+                    `operator_id` BIGINT DEFAULT NULL COMMENT '操作人员ID',
+                    `operator_code` VARCHAR(50) DEFAULT NULL COMMENT '操作人员编码',
+                    `operator_name` VARCHAR(50) DEFAULT NULL COMMENT '操作人员名称',
+                    `report_quantity` DECIMAL(18,4) DEFAULT 0 COMMENT '报工数量',
+                    `qualified_quantity` DECIMAL(18,4) DEFAULT 0 COMMENT '合格数量',
+                    `scrapped_quantity` DECIMAL(18,4) DEFAULT 0 COMMENT '报废数量',
+                    `rework_quantity` DECIMAL(18,4) DEFAULT 0 COMMENT '返工数量',
+                    `unit` VARCHAR(20) DEFAULT NULL COMMENT '单位',
+                    `work_hours` DECIMAL(10,2) DEFAULT NULL COMMENT '工时（小时）',
+                    `start_time` DATETIME DEFAULT NULL COMMENT '开始时间',
+                    `end_time` DATETIME DEFAULT NULL COMMENT '结束时间',
+                    `barcode` VARCHAR(100) DEFAULT NULL COMMENT '条码',
+                    `batch_no` VARCHAR(50) DEFAULT NULL COMMENT '批次号',
+                    `remark` VARCHAR(255) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1待报工 2已报工 3已审核',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除：0未删除 1已删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_report_no` (`report_no`),
+                    KEY `idx_work_order_id` (`work_order_id`),
+                    KEY `idx_work_order_no` (`work_order_no`),
+                    KEY `idx_operator_name` (`operator_name`),
+                    KEY `idx_barcode` (`barcode`),
+                    KEY `idx_status` (`status`, `is_deleted`),
+                    KEY `idx_create_time` (`create_time`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工序报工记录表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("工序报工记录表创建成功");
+            
+        } catch (Exception e) {
+            log.error("创建工序报工记录表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建领料单表
+     */
+    private void checkAndCreateMaterialPickTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_material_pick'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("领料单表 erp_material_pick 已存在");
+                return;
+            }
+
+            log.info("领料单表 erp_material_pick 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_material_pick` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `pick_no` VARCHAR(50) NOT NULL COMMENT '领料单号',
+                    `work_order_id` BIGINT DEFAULT NULL COMMENT '工单ID',
+                    `work_order_no` VARCHAR(50) DEFAULT NULL COMMENT '工单号',
+                    `work_order_name` VARCHAR(100) DEFAULT NULL COMMENT '工单名称',
+                    `bom_id` BIGINT DEFAULT NULL COMMENT 'BOM ID',
+                    `bom_version_id` BIGINT DEFAULT NULL COMMENT 'BOM版本ID',
+                    `bom_version_no` VARCHAR(50) DEFAULT NULL COMMENT 'BOM版本号',
+                    `product_id` BIGINT DEFAULT NULL COMMENT '产品ID',
+                    `product_code` VARCHAR(50) DEFAULT NULL COMMENT '产品编码',
+                    `product_name` VARCHAR(100) DEFAULT NULL COMMENT '产品名称',
+                    `material_id` BIGINT DEFAULT NULL COMMENT '物料ID',
+                    `material_code` VARCHAR(50) DEFAULT NULL COMMENT '物料编码',
+                    `material_name` VARCHAR(100) DEFAULT NULL COMMENT '物料名称',
+                    `specification` VARCHAR(100) DEFAULT NULL COMMENT '规格型号',
+                    `unit` VARCHAR(20) DEFAULT NULL COMMENT '单位',
+                    `plan_quantity` DECIMAL(18,4) DEFAULT 0 COMMENT '计划领料数量（BOM定额）',
+                    `picked_quantity` DECIMAL(18,4) DEFAULT 0 COMMENT '已领料数量',
+                    `remaining_quantity` DECIMAL(18,4) DEFAULT 0 COMMENT '剩余领料数量',
+                    `plan_pick_date` DATE DEFAULT NULL COMMENT '计划领料日期',
+                    `actual_pick_date` DATE DEFAULT NULL COMMENT '实际领料日期',
+                    `warehouse_id` BIGINT DEFAULT NULL COMMENT '仓库ID',
+                    `warehouse_code` VARCHAR(50) DEFAULT NULL COMMENT '仓库编码',
+                    `warehouse_name` VARCHAR(100) DEFAULT NULL COMMENT '仓库名称',
+                    `picker_id` BIGINT DEFAULT NULL COMMENT '领料人ID',
+                    `picker_name` VARCHAR(50) DEFAULT NULL COMMENT '领料人名称',
+                    `batch_no` VARCHAR(50) DEFAULT NULL COMMENT '批次号',
+                    `remark` VARCHAR(255) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1新建 2待审批 3已审批 4已领料 5已超领待审批',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除：0未删除 1已删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_pick_no` (`pick_no`),
+                    KEY `idx_work_order_id` (`work_order_id`),
+                    KEY `idx_work_order_no` (`work_order_no`),
+                    KEY `idx_material_code` (`material_code`),
+                    KEY `idx_material_name` (`material_name`),
+                    KEY `idx_status` (`status`, `is_deleted`),
+                    KEY `idx_create_time` (`create_time`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='领料单表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("领料单表创建成功");
+            
+        } catch (Exception e) {
+            log.error("创建领料单表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建退补料单表
+     */
+    private void checkAndCreateMaterialReturnTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_material_return'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("退补料单表 erp_material_return 已存在");
+                return;
+            }
+
+            log.info("退补料单表 erp_material_return 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_material_return` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `return_no` VARCHAR(50) NOT NULL COMMENT '退补料单号',
+                    `return_type` TINYINT NOT NULL DEFAULT 1 COMMENT '退补料类型：1余料退回 2不良品补料',
+                    `work_order_id` BIGINT DEFAULT NULL COMMENT '工单ID',
+                    `work_order_no` VARCHAR(50) DEFAULT NULL COMMENT '工单号',
+                    `work_order_name` VARCHAR(100) DEFAULT NULL COMMENT '工单名称',
+                    `pick_id` BIGINT DEFAULT NULL COMMENT '领料单ID',
+                    `pick_no` VARCHAR(50) DEFAULT NULL COMMENT '领料单号',
+                    `product_id` BIGINT DEFAULT NULL COMMENT '产品ID',
+                    `product_code` VARCHAR(50) DEFAULT NULL COMMENT '产品编码',
+                    `product_name` VARCHAR(100) DEFAULT NULL COMMENT '产品名称',
+                    `material_id` BIGINT DEFAULT NULL COMMENT '物料ID',
+                    `material_code` VARCHAR(50) DEFAULT NULL COMMENT '物料编码',
+                    `material_name` VARCHAR(100) DEFAULT NULL COMMENT '物料名称',
+                    `specification` VARCHAR(100) DEFAULT NULL COMMENT '规格型号',
+                    `unit` VARCHAR(20) DEFAULT NULL COMMENT '单位',
+                    `return_quantity` DECIMAL(18,4) DEFAULT 0 COMMENT '退补料数量',
+                    `return_value` DECIMAL(18,4) DEFAULT NULL COMMENT '退补料价值',
+                    `return_reason` VARCHAR(255) DEFAULT NULL COMMENT '退补料原因',
+                    `return_date` DATE DEFAULT NULL COMMENT '退补料日期',
+                    `warehouse_id` BIGINT DEFAULT NULL COMMENT '仓库ID',
+                    `warehouse_code` VARCHAR(50) DEFAULT NULL COMMENT '仓库编码',
+                    `warehouse_name` VARCHAR(100) DEFAULT NULL COMMENT '仓库名称',
+                    `operator_id` BIGINT DEFAULT NULL COMMENT '操作人员ID',
+                    `operator_name` VARCHAR(50) DEFAULT NULL COMMENT '操作人员名称',
+                    `batch_no` VARCHAR(50) DEFAULT NULL COMMENT '批次号',
+                    `remark` VARCHAR(255) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1新建 2待审批 3已审批 4已完成',
+                    `approval_user_id` BIGINT DEFAULT NULL COMMENT '审批用户ID',
+                    `approval_user_name` VARCHAR(50) DEFAULT NULL COMMENT '审批用户名',
+                    `approval_time` DATETIME DEFAULT NULL COMMENT '审批时间',
+                    `approval_opinion` VARCHAR(255) DEFAULT NULL COMMENT '审批意见',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除：0未删除 1已删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_return_no` (`return_no`),
+                    KEY `idx_work_order_id` (`work_order_id`),
+                    KEY `idx_work_order_no` (`work_order_no`),
+                    KEY `idx_material_code` (`material_code`),
+                    KEY `idx_material_name` (`material_name`),
+                    KEY `idx_return_type` (`return_type`),
+                    KEY `idx_status` (`status`, `is_deleted`),
+                    KEY `idx_create_time` (`create_time`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='退补料单表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("退补料单表创建成功");
+            
+        } catch (Exception e) {
+            log.error("创建退补料单表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并创建超领审批单表
+     */
+    private void checkAndCreateOverPickApprovalTable() {
+        try {
+            Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'erp_over_pick_approval'",
+                Long.class
+            );
+            
+            if (count != null && count > 0) {
+                log.info("超领审批单表 erp_over_pick_approval 已存在");
+                return;
+            }
+
+            log.info("超领审批单表 erp_over_pick_approval 不存在，创建表...");
+            
+            String createTableSql = """
+                CREATE TABLE `erp_over_pick_approval` (
+                    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+                    `approval_no` VARCHAR(50) NOT NULL COMMENT '审批单号',
+                    `work_order_id` BIGINT DEFAULT NULL COMMENT '工单ID',
+                    `work_order_no` VARCHAR(50) DEFAULT NULL COMMENT '工单号',
+                    `work_order_name` VARCHAR(100) DEFAULT NULL COMMENT '工单名称',
+                    `pick_id` BIGINT DEFAULT NULL COMMENT '领料单ID',
+                    `pick_no` VARCHAR(50) DEFAULT NULL COMMENT '领料单号',
+                    `product_id` BIGINT DEFAULT NULL COMMENT '产品ID',
+                    `product_code` VARCHAR(50) DEFAULT NULL COMMENT '产品编码',
+                    `product_name` VARCHAR(100) DEFAULT NULL COMMENT '产品名称',
+                    `material_id` BIGINT DEFAULT NULL COMMENT '物料ID',
+                    `material_code` VARCHAR(50) DEFAULT NULL COMMENT '物料编码',
+                    `material_name` VARCHAR(100) DEFAULT NULL COMMENT '物料名称',
+                    `specification` VARCHAR(100) DEFAULT NULL COMMENT '规格型号',
+                    `unit` VARCHAR(20) DEFAULT NULL COMMENT '单位',
+                    `plan_quantity` DECIMAL(18,4) DEFAULT 0 COMMENT '计划领料数量（BOM定额）',
+                    `over_pick_quantity` DECIMAL(18,4) DEFAULT 0 COMMENT '超领数量',
+                    `total_quantity` DECIMAL(18,4) DEFAULT 0 COMMENT '总领料数量',
+                    `over_pick_reason` VARCHAR(255) DEFAULT NULL COMMENT '超领原因',
+                    `applicant_id` BIGINT DEFAULT NULL COMMENT '申请人ID',
+                    `applicant_name` VARCHAR(50) DEFAULT NULL COMMENT '申请人名称',
+                    `application_time` DATETIME DEFAULT NULL COMMENT '申请时间',
+                    `approval_user_id` BIGINT DEFAULT NULL COMMENT '审批用户ID',
+                    `approval_user_name` VARCHAR(50) DEFAULT NULL COMMENT '审批用户名',
+                    `approval_time` DATETIME DEFAULT NULL COMMENT '审批时间',
+                    `approval_opinion` VARCHAR(255) DEFAULT NULL COMMENT '审批意见',
+                    `remark` VARCHAR(255) DEFAULT NULL COMMENT '备注',
+                    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1草稿 2待审批 3已通过 4已驳回 5已撤销',
+                    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除：0未删除 1已删除',
+                    `create_by` VARCHAR(50) DEFAULT NULL COMMENT '创建人',
+                    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    `update_by` VARCHAR(50) DEFAULT NULL COMMENT '更新人',
+                    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    `ext1` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段1',
+                    `ext2` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段2',
+                    `ext3` VARCHAR(255) DEFAULT NULL COMMENT '预留扩展字段3',
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `uk_approval_no` (`approval_no`),
+                    KEY `idx_work_order_id` (`work_order_id`),
+                    KEY `idx_work_order_no` (`work_order_no`),
+                    KEY `idx_pick_id` (`pick_id`),
+                    KEY `idx_material_code` (`material_code`),
+                    KEY `idx_material_name` (`material_name`),
+                    KEY `idx_status` (`status`, `is_deleted`),
+                    KEY `idx_create_time` (`create_time`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='超领审批单表'
+                """;
+            
+            jdbcTemplate.execute(createTableSql);
+            log.info("超领审批单表创建成功");
+            
+        } catch (Exception e) {
+            log.error("创建超领审批单表失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并插入现场执行与损耗管控菜单数据
+     */
+    private void checkAndInsertProductionExecutionMenuData() {
+        try {
+            List<Map<String, Object>> workOrderExecMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = '生产工单与执行管理' AND parent_id = 0 LIMIT 1"
+            );
+            
+            Long workOrderExecMenuId = 0L;
+            if (workOrderExecMenus.isEmpty()) {
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    0, "生产工单与执行管理", 1, null, "/erp/work-order", "Layout", "List", 90, 1, 1, 1
+                );
+                workOrderExecMenuId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                log.info("插入生产工单与执行管理菜单，ID: {}", workOrderExecMenuId);
+            } else {
+                workOrderExecMenuId = ((Number) workOrderExecMenus.get(0).get("id")).longValue();
+                log.info("生产工单与执行管理菜单已存在，ID: {}", workOrderExecMenuId);
+            }
+            
+            List<Map<String, Object>> executionMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = '现场执行与损耗管控' AND parent_id = ? LIMIT 1",
+                workOrderExecMenuId
+            );
+            
+            Long executionMenuId = 0L;
+            if (executionMenus.isEmpty()) {
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    workOrderExecMenuId, "现场执行与损耗管控", 1, null, "execution", "Layout", "List", 3, 1, 1, 1
+                );
+                executionMenuId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                log.info("插入现场执行与损耗管控菜单，ID: {}", executionMenuId);
+            } else {
+                executionMenuId = ((Number) executionMenus.get(0).get("id")).longValue();
+                log.info("现场执行与损耗管控菜单已存在，ID: {}", executionMenuId);
+            }
+            
+            checkAndInsertProductionExecutionSubMenu(executionMenuId, "扫码报工", "erp:processReport:list", "process-reports", "erp/ProcessReport", "Document", 1);
+            checkAndInsertProductionExecutionSubMenu(executionMenuId, "限额领料", "erp:materialPick:list", "material-picks", "erp/MaterialPick", "Box", 2);
+            checkAndInsertProductionExecutionSubMenu(executionMenuId, "退补料管理", "erp:materialReturn:list", "material-returns", "erp/MaterialReturn", "Refresh", 3);
+            checkAndInsertProductionExecutionSubMenu(executionMenuId, "超领审批", "erp:overPickApproval:list", "over-pick-approvals", "erp/OverPickApproval", "DocumentChecked", 4);
+            
+            assignProductionExecutionMenuPermissionsToAdmin();
+            
+        } catch (Exception e) {
+            log.error("插入现场执行与损耗管控菜单失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 检查并插入现场执行与损耗管控子菜单
+     */
+    private void checkAndInsertProductionExecutionSubMenu(Long parentId, String menuName, String permissionKey, String path, String component, String icon, int sortOrder) {
+        try {
+            List<Map<String, Object>> existingMenus = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE menu_name = ? AND parent_id = ? LIMIT 1",
+                menuName, parentId
+            );
+            
+            if (existingMenus.isEmpty()) {
+                jdbcTemplate.update(
+                    "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `path`, `component`, `icon`, `sort_order`, `is_visible`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    parentId, menuName, 2, permissionKey, path, component, icon, sortOrder, 1, 1, 1
+                );
+                Long menuId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                log.info("插入{}菜单，ID: {}", menuName, menuId);
+                
+                String[][] buttons = {
+                    {"新增", permissionKey.replace(":list", ":add"), "1"},
+                    {"编辑", permissionKey.replace(":list", ":edit"), "2"},
+                    {"删除", permissionKey.replace(":list", ":delete"), "3"}
+                };
+                
+                for (String[] button : buttons) {
+                    jdbcTemplate.update(
+                        "INSERT INTO `sys_menu` (`parent_id`, `menu_name`, `menu_type`, `permission_key`, `sort_order`, `status`, `is_system`) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        menuId, button[0], 3, button[1], Integer.parseInt(button[2]), 1, 1
+                    );
+                }
+            } else {
+                Long menuId = ((Number) existingMenus.get(0).get("id")).longValue();
+                log.info("{}菜单已存在，ID: {}", menuName, menuId);
+            }
+        } catch (Exception e) {
+            log.error("插入{}菜单失败: {}", menuName, e.getMessage());
+        }
+    }
+
+    /**
+     * 给超级管理员分配现场执行与损耗管控菜单权限
+     */
+    private void assignProductionExecutionMenuPermissionsToAdmin() {
+        try {
+            List<Map<String, Object>> menuIds = jdbcTemplate.queryForList(
+                "SELECT id FROM sys_menu WHERE path LIKE '%process-reports%' OR path LIKE '%material-picks%' OR path LIKE '%material-returns%' OR path LIKE '%over-pick-approvals%' OR menu_name = '现场执行与损耗管控'"
+            );
+            
+            for (Map<String, Object> menu : menuIds) {
+                Long menuId = ((Number) menu.get("id")).longValue();
+                jdbcTemplate.update(
+                    "INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES (?, ?)",
+                    1, menuId
+                );
+            }
+            
+            log.info("已给超级管理员分配现场执行与损耗管控菜单权限");
+        } catch (Exception e) {
+            log.error("分配现场执行与损耗管控菜单权限失败: {}", e.getMessage());
         }
     }
 }

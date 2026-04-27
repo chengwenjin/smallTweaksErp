@@ -156,6 +156,30 @@ const routes: RouteRecordRaw[] = [
         name: 'WorkOrderDashboardManagement',
         component: () => import('@/views/erp/WorkOrderDashboard.vue'),
         meta: { title: '工单看板' }
+      },
+      {
+        path: 'erp/process-reports',
+        name: 'ProcessReportManagement',
+        component: () => import('@/views/erp/ProcessReport.vue'),
+        meta: { title: '扫码报工' }
+      },
+      {
+        path: 'erp/material-picks',
+        name: 'MaterialPickManagement',
+        component: () => import('@/views/erp/MaterialPick.vue'),
+        meta: { title: '限额领料' }
+      },
+      {
+        path: 'erp/material-returns',
+        name: 'MaterialReturnManagement',
+        component: () => import('@/views/erp/MaterialReturn.vue'),
+        meta: { title: '退补料管理' }
+      },
+      {
+        path: 'erp/over-pick-approvals',
+        name: 'OverPickApprovalManagement',
+        component: () => import('@/views/erp/OverPickApproval.vue'),
+        meta: { title: '超领审批' }
       }
     ]
   }

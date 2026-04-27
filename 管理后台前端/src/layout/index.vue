@@ -99,6 +99,13 @@
             <template #title>进度跟踪</template>
             <el-menu-item index="/erp/work-order-dashboard">工单看板</el-menu-item>
           </el-sub-menu>
+          <el-sub-menu index="/work-order/execution">
+            <template #title>现场执行与损耗管控</template>
+            <el-menu-item index="/erp/process-reports">扫码报工</el-menu-item>
+            <el-menu-item index="/erp/material-picks">限额领料</el-menu-item>
+            <el-menu-item index="/erp/material-returns">退补料管理</el-menu-item>
+            <el-menu-item index="/erp/over-pick-approvals">超领审批</el-menu-item>
+          </el-sub-menu>
         </el-sub-menu>
       </el-menu>
     </el-aside>
