@@ -107,6 +107,19 @@
             <el-menu-item index="/erp/over-pick-approvals">超领审批</el-menu-item>
           </el-sub-menu>
         </el-sub-menu>
+
+        <el-sub-menu index="/quality">
+          <template #title>
+            <el-icon><DocumentChecked /></el-icon>
+            <span>质量检验管理</span>
+          </template>
+          <el-sub-menu index="/quality/full-inspection">
+            <template #title>全流程质检</template>
+            <el-menu-item index="/erp/iqc-inspections">来料检验 (IQC)</el-menu-item>
+            <el-menu-item index="/erp/ipqc-inspections">过程检验 (IPQC)</el-menu-item>
+            <el-menu-item index="/erp/fqc-inspections">成品检验 (FQC)</el-menu-item>
+          </el-sub-menu>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
 

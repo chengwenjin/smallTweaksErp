@@ -180,6 +180,24 @@ const routes: RouteRecordRaw[] = [
         name: 'OverPickApprovalManagement',
         component: () => import('@/views/erp/OverPickApproval.vue'),
         meta: { title: '超领审批' }
+      },
+      {
+        path: 'erp/iqc-inspections',
+        name: 'IqcInspectionManagement',
+        component: () => import('@/views/erp/IqcInspection.vue'),
+        meta: { title: '来料检验 (IQC)' }
+      },
+      {
+        path: 'erp/ipqc-inspections',
+        name: 'IpqcInspectionManagement',
+        component: () => import('@/views/erp/IpqcInspection.vue'),
+        meta: { title: '过程检验 (IPQC)' }
+      },
+      {
+        path: 'erp/fqc-inspections',
+        name: 'FqcInspectionManagement',
+        component: () => import('@/views/erp/FqcInspection.vue'),
+        meta: { title: '成品检验 (FQC)' }
       }
     ]
   }
